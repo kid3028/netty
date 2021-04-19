@@ -22,6 +22,7 @@ import java.net.SocketAddress;
  */
 public interface ChannelOutboundHandler extends ChannelHandler {
     /**
+     * 调用ServerBootstrap的bind方法的处理逻辑，绑定操作。服务端启动时调用bind方法触发
      * Called once a bind operation is made.
      *
      * @param ctx           the {@link ChannelHandlerContext} for which the bind operation is made
@@ -32,6 +33,7 @@ public interface ChannelOutboundHandler extends ChannelHandler {
     void bind(ChannelHandlerContext ctx, SocketAddress localAddress, ChannelPromise promise) throws Exception;
 
     /**
+     * 连接操作，客户端启动时调用connect方法时触发(手动调用connect)
      * Called once a connect operation is made.
      *
      * @param ctx               the {@link ChannelHandlerContext} for which the connect operation is made
@@ -45,6 +47,7 @@ public interface ChannelOutboundHandler extends ChannelHandler {
             SocketAddress localAddress, ChannelPromise promise) throws Exception;
 
     /**
+     * 断开连接操作
      * Called once a disconnect operation is made.
      *
      * @param ctx               the {@link ChannelHandlerContext} for which the disconnect operation is made
@@ -54,6 +57,7 @@ public interface ChannelOutboundHandler extends ChannelHandler {
     void disconnect(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception;
 
     /**
+     * 关闭通道，手动调用Channel的close犯法触发
      * Called once a close operation is made.
      *
      * @param ctx               the {@link ChannelHandlerContext} for which the close operation is made

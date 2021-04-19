@@ -26,6 +26,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
+ * ChannelHandler处理io事件或者拦截io操作，并在channelPipeline中传递
+ * channelHandler提供的方法较少，一般我们直接使用其子类 ChannelInboundHandler or ChannelOutboundHandler
+ * 更方便地，可以用使用 ChannelInboundHandlerAdapter ChannelOutboundHandlerAdapter ChannelDuplexHandler
  * Handles an I/O event or intercepts an I/O operation, and forwards it to its next handler in
  * its {@link ChannelPipeline}.
  *
@@ -49,6 +52,10 @@ import java.lang.annotation.Target;
  * For more information, please refer to the documentation of each subtype.
  * </p>
  *
+ * 上下文对象
+ * ChannelHandler重提供了一个ChannelHandlerContext对象。pipeline中的handler可以用过ctx对象进行交互。
+ * 通过ctx对象，ChannelHandler能够通过上下游事件动态改变pipeline，使用AttributeKey存储信息
+ *
  * <h3>The context object</h3>
  * <p>
  * A {@link ChannelHandler} is provided with a {@link ChannelHandlerContext}
@@ -58,6 +65,9 @@ import java.lang.annotation.Target;
  * downstream, modify the pipeline dynamically, or store the information
  * (using {@link AttributeKey}s) which is specific to the handler.
  *
+ * 状态信息管理
+ * 推荐使用成员变量来存储状态信息
+ * 当使用成员变量存储状态信息后，handler将不是线程安全所以需要为每一个channel创建一个handler
  * <h3>State management</h3>
  *
  * A {@link ChannelHandler} often needs to store some stateful information.
@@ -103,6 +113,10 @@ import java.lang.annotation.Target;
  *
  * </pre>
  *
+ * 使用AttributeKey
+ * 尽管我们推荐使用成员变量来存储一个handler的创建，但是有时我们并不想为每一个channel创建一个handler实例，
+ * 在这种场景下，我们可以使用ChannelHandlerContext的AttributeKey
+ * AttributeKey类型的成员变量
  * <h4>Using {@link AttributeKey}s</h4>
  *
  * Although it's recommended to use member variables to store the state of a
@@ -150,7 +164,9 @@ import java.lang.annotation.Target;
  * }
  * </pre>
  *
- *
+ * @Sharable
+ * 如果一个ChannelHandler使用@Sharable注解，这个handler可以被创建一次或者多次，都会发生线程安全问题。
+ * 如果没有使用注解，需要在每次向pipeline中添加时都创建一个新的handler
  * <h4>The {@code @Sharable} annotation</h4>
  * <p>
  * In the example above which used an {@link AttributeKey},

@@ -35,6 +35,13 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 import java.net.SocketAddress;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+/**
+ * handler/ctx 状态
+ *  ADD_PENDING = 1;
+ *  ADD_COMPLETE = 2;
+ *  REMOVE_COMPLETE = 3;
+ *  INIT = 0;
+ */
 abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
         implements ChannelHandlerContext, ResourceLeakHint {
 

@@ -157,17 +157,20 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         final AbstractChannelHandlerContext newCtx;
         synchronized (this) {
             checkMultiplicity(handler);
+            // 检查name是否重复，如果重复，抛出异常，没有重复则使用类名生成一个，同一个类多个handler则index递增
             name = filterName(name, handler);
-
+            // 为handler创建ctx包裹
             newCtx = newContext(group, name, handler);
-
+            // 插入到header之后
             addFirst0(newCtx);
 
             // If the registered is false it means that the channel was not registered on an eventLoop yet.
             // In this case we add the context to the pipeline and add a task that will call
             // ChannelHandler.handlerAdded(...) once the channel is registered.
             if (!registered) {
+                // 设置ctx的 handlerState = ADD_PENDING
                 newCtx.setAddPending();
+                // 调用channelHandler#handlerAdded方法
                 callHandlerCallbackLater(newCtx, true);
                 return this;
             }
@@ -199,10 +202,12 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     public final ChannelPipeline addLast(EventExecutorGroup group, String name, ChannelHandler handler) {
         final AbstractChannelHandlerContext newCtx;
         synchronized (this) {
+            // 如果不是sharable的不能重复添加
             checkMultiplicity(handler);
 
             newCtx = newContext(group, filterName(name, handler), handler);
 
+            // 将当前handler添加到链表中， tail前一个
             addLast0(newCtx);
 
             // If the registered is false it means that the channel was not registered on an eventLoop yet.
@@ -210,10 +215,12 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             // ChannelHandler.handlerAdded(...) once the channel is registered.
             if (!registered) {
                 newCtx.setAddPending();
+                // 任务在pipeline中以链表形式保存下来，逐个调用
                 callHandlerCallbackLater(newCtx, true);
                 return this;
             }
 
+            // channel不是和当前的线程绑定，提交任务，待绑定线程执行调用
             EventExecutor executor = newCtx.executor();
             if (!executor.inEventLoop()) {
                 callHandlerAddedInEventLoop(newCtx, executor);
@@ -224,6 +231,10 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return this;
     }
 
+    /**
+     * handler以链表的形式组织在一起
+     * @param newCtx
+     */
     private void addLast0(AbstractChannelHandlerContext newCtx) {
         AbstractChannelHandlerContext prev = tail.prev;
         newCtx.prev = prev;
@@ -605,6 +616,12 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
     }
 
+    /**
+     * 执行handler的添加,
+     *   1、将handler.handlerState 更新为 ADD_COMPLETE = 2
+     *   2、调用当前handler的handlerAdded方法
+     * @param ctx
+     */
     private void callHandlerAdded0(final AbstractChannelHandlerContext ctx) {
         try {
             ctx.callHandlerAdded();
@@ -1128,6 +1145,11 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
     }
 
+    /**
+     * 添加异步任务队列中
+     * @param ctx
+     * @param added
+     */
     private void callHandlerCallbackLater(AbstractChannelHandlerContext ctx, boolean added) {
         assert !registered;
 
@@ -1316,6 +1338,12 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             return this;
         }
 
+        /**
+         * handlerAdded handlerRemoved 不做任何处理
+         * 由于在handler add和remove时都会向 事件链注册，所以这里空实现即可
+         * @param ctx
+         * @throws Exception
+         */
         @Override
         public void handlerAdded(ChannelHandlerContext ctx) {
             // NOOP
@@ -1370,17 +1398,36 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             unsafe.flush();
         }
 
+        /**
+         * 异常不关注，向下传播
+         * @param ctx
+         * @param cause
+         * @throws Exception
+         */
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             ctx.fireExceptionCaught(cause);
         }
 
+
+        /**
+         * channel成功注册后，判断是否是第一次注册，如果是第一次注册，调用所有channelHandler#handlerAdded事件，
+         * 因为当前channel增加到事件链后，如果channel还未注册，channelAdd事件不会马上执行，需要等channel注册后才执行，
+         * 故这里需要先执行挂起的事件，然后再传播注册事件
+         * @param ctx
+         * @throws Exception
+         */
         @Override
         public void channelRegistered(ChannelHandlerContext ctx) {
             invokeHandlerAddedIfNeeded();
             ctx.fireChannelRegistered();
         }
 
+        /**
+         * 顺序移除所有handler
+         * @param ctx
+         * @throws Exception
+         */
         @Override
         public void channelUnregistered(ChannelHandlerContext ctx) {
             ctx.fireChannelUnregistered();
@@ -1394,7 +1441,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         @Override
         public void channelActive(ChannelHandlerContext ctx) {
             ctx.fireChannelActive();
-
+            // 如果开启了自动读（autoRead=true），则调用channel#read方法，向selector注册读事件
             readIfIsAutoRead();
         }
 
@@ -1403,11 +1450,22 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             ctx.fireChannelInactive();
         }
 
+        /**
+         * 向下传播事件，各个编码器、业务处理器自行处理业务逻辑
+         * @param ctx
+         * @param msg
+         * @throws Exception
+         */
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) {
             ctx.fireChannelRead(msg);
         }
 
+        /**
+         * 向下传播事件，如果开启了自动读，则继续向selector注册读事件
+         * @param ctx
+         * @throws Exception
+         */
         @Override
         public void channelReadComplete(ChannelHandlerContext ctx) {
             ctx.fireChannelReadComplete();
@@ -1415,17 +1473,31 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             readIfIsAutoRead();
         }
 
+        /**
+         * 如果开启了自动读（autoRead=true），则调用channel#read方法，向selector注册读事件
+         */
         private void readIfIsAutoRead() {
             if (channel.config().isAutoRead()) {
                 channel.read();
             }
         }
 
+        /**
+         * 向下传播
+         * @param ctx
+         * @param evt
+         * @throws Exception
+         */
         @Override
         public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
             ctx.fireUserEventTriggered(evt);
         }
 
+        /**
+         * 向下传播
+         * @param ctx
+         * @throws Exception
+         */
         @Override
         public void channelWritabilityChanged(ChannelHandlerContext ctx) {
             ctx.fireChannelWritabilityChanged();

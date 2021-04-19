@@ -142,6 +142,8 @@ public interface ChannelConfig {
     ChannelConfig setMaxMessagesPerRead(int maxMessagesPerRead);
 
     /**
+     * 一次写事件中最多调用的write方法的次数，主要是为了避免一个网络通道写入大量数据，
+     * 对其他通道的读写处理造成延迟，默认是16
      * Returns the maximum loop count for a write operation until
      * {@link WritableByteChannel#write(ByteBuffer)} returns a non-zero value.
      * It is similar to what a spin lock is used for in concurrency programming.
@@ -163,6 +165,7 @@ public interface ChannelConfig {
     ChannelConfig setWriteSpinCount(int writeSpinCount);
 
     /**
+     * 返回该channel的内存分配器
      * Returns {@link ByteBufAllocator} which is used for the channel
      * to allocate buffers.
      */
@@ -175,6 +178,7 @@ public interface ChannelConfig {
     ChannelConfig setAllocator(ByteBufAllocator allocator);
 
     /**
+     * 读事件读缓冲区的分配策略
      * Returns {@link RecvByteBufAllocator} which is used for the channel to allocate receive buffers.
      */
     <T extends RecvByteBufAllocator> T getRecvByteBufAllocator();
@@ -185,6 +189,7 @@ public interface ChannelConfig {
     ChannelConfig setRecvByteBufAllocator(RecvByteBufAllocator allocator);
 
     /**
+     * 是否自动触发read方法调用，默认是true，读事件触发后自动调用read方法，无需应用程序显示调用
      * Returns {@code true} if and only if {@link ChannelHandlerContext#read()} will be invoked automatically so that
      * a user application doesn't need to call it at all. The default value is {@code true}.
      */
@@ -209,6 +214,7 @@ public interface ChannelConfig {
     ChannelConfig setAutoClose(boolean autoClose);
 
     /**
+     * 设置写缓冲区的高水位线，如果写缓冲区的数据超过该值， isWritable将会返回false
      * Returns the high water mark of the write buffer.  If the number of bytes
      * queued in the write buffer exceeds this value, {@link Channel#isWritable()}
      * will start to return {@code false}.
@@ -224,6 +230,7 @@ public interface ChannelConfig {
     ChannelConfig setWriteBufferHighWaterMark(int writeBufferHighWaterMark);
 
     /**
+     * 等写缓冲区数据低于该值，isWritable方法将会返回true
      * Returns the low water mark of the write buffer.  Once the number of bytes
      * queued in the write buffer exceeded the
      * {@linkplain #setWriteBufferHighWaterMark(int) high water mark} and then

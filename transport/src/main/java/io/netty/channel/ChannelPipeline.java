@@ -207,6 +207,9 @@ import java.util.NoSuchElementException;
  * pipeline.addLast(group, "handler", new MyBusinessLogicHandler());
  * </pre>
  *
+ * 线程安全
+ * channelHandler可以在任何时候被添加或者删除，因为channelPipeline是线程安全的。
+ *
  * <h3>Thread safety</h3>
  * <p>
  * A {@link ChannelHandler} can be added or removed at any time because a {@link ChannelPipeline} is thread safe.

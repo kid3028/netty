@@ -96,7 +96,7 @@ public class ChannelDuplexHandler extends ChannelInboundHandlerAdapter implement
     }
 
     /**
-     * Calls {@link ChannelHandlerContext#write(Object, ChannelPromise)} to forward
+     * Calls {@link ChannelHandlerContext#write(Object, ChannelPromise)} to forwarde
      * to the next {@link ChannelOutboundHandler} in the {@link ChannelPipeline}.
      *
      * Sub-classes may override this method to change behavior.

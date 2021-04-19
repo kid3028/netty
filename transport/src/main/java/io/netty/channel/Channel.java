@@ -28,6 +28,14 @@ import java.net.SocketAddress;
 
 
 /**
+ * channel 提供了对socket的绑定、连接、读写的能力
+ *
+ * channel提供的能力：
+ *   当前channel的状态：打开或者连接
+ *   ChannelConfig封装了channel的配置参数
+ *   对io操作的支持（绑定、连接、读写等）
+ *   channelPipeline处理所有的io事件/所有本channel的请求
+ *
  * A nexus to a network socket or a component which is capable of I/O
  * operations such as read, write, connect, and bind.
  * <p>
@@ -40,6 +48,9 @@ import java.net.SocketAddress;
  *     associated with the channel.</li>
  * </ul>
  *
+ *
+ * 所有的io操作是异步的，所有的io调用将会立即返回，不保证io操作在调用结束时已经完成。
+ * 操作将会返回一个ChannelFuture，当io请求处理完成后通知用户
  * <h3>All I/O operations are asynchronous.</h3>
  * <p>
  * All I/O operations in Netty are asynchronous.  It means any I/O calls will
@@ -47,6 +58,10 @@ import java.net.SocketAddress;
  * been completed at the end of the call.  Instead, you will be returned with
  * a {@link ChannelFuture} instance which will notify you when the requested I/O
  * operation has succeeded, failed, or canceled.
+ *
+ * Channel是有父子关系的。
+ * Channel#parent()返回创建当前channel时依赖的channel。
+ * 例如SocketChannel由ServerSocketChannel接收连接创建，故parent()将会返回ServerSocketChannel
  *
  * <h3>Channels are hierarchical</h3>
  * <p>
@@ -68,6 +83,8 @@ import java.net.SocketAddress;
  * operations.  For example, with the old I/O datagram transport, multicast
  * join / leave operations are provided by {@link DatagramChannel}.
  *
+ * 释放资源
+ * 当channel不再使用时，调用close()释放所有资源
  * <h3>Release resources</h3>
  * <p>
  * It is important to call {@link #close()} or {@link #close(ChannelPromise)} to release all
@@ -77,11 +94,13 @@ import java.net.SocketAddress;
 public interface Channel extends AttributeMap, ChannelOutboundInvoker, Comparable<Channel> {
 
     /**
+     * channel全局唯一的标识
      * Returns the globally unique identifier of this {@link Channel}.
      */
     ChannelId id();
 
     /**
+     * channel注册的线程(事件轮询器)
      * Return the {@link EventLoop} this {@link Channel} was registered to.
      */
     EventLoop eventLoop();
@@ -110,6 +129,9 @@ public interface Channel extends AttributeMap, ChannelOutboundInvoker, Comparabl
     boolean isRegistered();
 
     /**
+     * 通道是否激活
+     * NioSocketChannel实现为：java.nio.channel.SocketChannel#isOpen isConnected 都返回true
+     * NioServerSocketChannel实现为：ServerSocketChannel.socket.isBound 成功绑定到端口
      * Return {@code true} if the {@link Channel} is active and so connected.
      */
     boolean isActive();
@@ -147,6 +169,8 @@ public interface Channel extends AttributeMap, ChannelOutboundInvoker, Comparabl
     SocketAddress remoteAddress();
 
     /**
+     * 调用该方法的目的不是关闭channel，而是预先创建一个凭证（Future），待channel关闭时，
+     * 会通知该future，用户可以通过该future注册事件
      * Returns the {@link ChannelFuture} which will be notified when this
      * channel is closed.  This method always returns the same future instance.
      */
@@ -187,6 +211,12 @@ public interface Channel extends AttributeMap, ChannelOutboundInvoker, Comparabl
      */
     ByteBufAllocator alloc();
 
+    /**
+     * 该方法并不是直接从读写缓冲区中读取数据，而是向Nio色selector注册读事件
+     * 当channel收到对端的数据之后，事件选择器会处理读事件，从而触发ChannelInboundHandler的channelRead方法，
+     * 然后继续触发ChanelInboundHandler#channelReadComplete事件
+     * @return
+     */
     @Override
     Channel read();
 
@@ -233,12 +263,14 @@ public interface Channel extends AttributeMap, ChannelOutboundInvoker, Comparabl
         void register(EventLoop eventLoop, ChannelPromise promise);
 
         /**
+         * 服务端绑定本地端口，并开始监听客户端请求，
          * Bind the {@link SocketAddress} to the {@link Channel} of the {@link ChannelPromise} and notify
          * it once its done.
          */
         void bind(SocketAddress localAddress, ChannelPromise promise);
 
         /**
+         * 客户端连接服务端
          * Connect the {@link Channel} of the given {@link ChannelFuture} with the given remote {@link SocketAddress}.
          * If a specific local {@link SocketAddress} should be used it need to be given as argument. Otherwise just
          * pass {@code null} to it.
@@ -248,12 +280,14 @@ public interface Channel extends AttributeMap, ChannelOutboundInvoker, Comparabl
         void connect(SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise);
 
         /**
+         * 断开连接，但是不会释放资源，该channel还可以通过connect()与服务端重新连接
          * Disconnect the {@link Channel} of the {@link ChannelFuture} and notify the {@link ChannelPromise} once the
          * operation was complete.
          */
         void disconnect(ChannelPromise promise);
 
         /**
+         * 关闭通道，释放资源，该通道的生命周期完全结束
          * Close the {@link Channel} of the {@link ChannelPromise} and notify the {@link ChannelPromise} once the
          * operation was complete.
          */
@@ -266,6 +300,7 @@ public interface Channel extends AttributeMap, ChannelOutboundInvoker, Comparabl
         void closeForcibly();
 
         /**
+         * 取消注册
          * Deregister the {@link Channel} of the {@link ChannelPromise} from {@link EventLoop} and notify the
          * {@link ChannelPromise} once the operation was complete.
          */
@@ -278,11 +313,13 @@ public interface Channel extends AttributeMap, ChannelOutboundInvoker, Comparabl
         void beginRead();
 
         /**
+         * 向channel中写入数据，该方法会触发相应的写事件，只是将数据写入通道缓冲区中，并不会调用flush将数据写入channel
          * Schedules a write operation.
          */
         void write(Object msg, ChannelPromise promise);
 
         /**
+         * 将所有数据刷写到流中
          * Flush out all write operations scheduled via {@link #write(Object, ChannelPromise)}.
          */
         void flush();
