@@ -15,17 +15,18 @@
  */
 package io.netty.handler.codec;
 
-import static io.netty.util.internal.ObjectUtil.checkNotNull;
-import static io.netty.util.internal.ObjectUtil.checkPositive;
-import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.serialization.ObjectDecoder;
 
 import java.nio.ByteOrder;
 import java.util.List;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
+import static io.netty.util.internal.ObjectUtil.*;
 
 /**
+ * 通过消息体中的长度字段来切分收到的ByteBuf。
+ * 在有长度字段标识的消息体中，这个decoder是非常实用的
  * A decoder that splits the received {@link ByteBuf}s dynamically by the
  * value of the length field in the message.  It is particularly useful when you
  * decode a binary message which has an integer header field that represents the
@@ -185,17 +186,50 @@ import io.netty.channel.ChannelHandlerContext;
  * @see LengthFieldPrepender
  */
 public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
-
+    /**
+     * 字节序列，netty默认使用大端序列(int/long等数值类型)，
+     * 所谓的大端序列，即接收端收到的字节流的顺序是从数值类型的高字节开始
+     */
     private final ByteOrder byteOrder;
+    /**
+     * 一条消息最大的长度
+     */
     private final int maxFrameLength;
+    /**
+     * 长度字段的偏移量
+     */
     private final int lengthFieldOffset;
+    /**
+     * 长度字段占用的字节长度
+     */
     private final int lengthFieldLength;
+    /**
+     * 长度字段的结束偏移量 = lengthFieldOffset + lengthFieldLength
+     */
     private final int lengthFieldEndOffset;
+    /**
+     * 长度适配值。表示协议中长度字段与消息体字段直接的距离
+     */
     private final int lengthAdjustment;
+    /**
+     * 跳过一个包的前面多少个字节不处理，通常将协议头头部跳过，只将消息体内容传输到下游使用
+     */
     private final int initialBytesToStrip;
+    /**
+     * 是否快速失败
+     */
     private final boolean failFast;
+    /**
+     * 是否跳过大帧包
+     */
     private boolean discardingTooLongFrame;
+    /**
+     * 当前丢弃大帧包的实际大小
+     */
     private long tooLongFrameLength;
+    /**
+     * 下次解码之前，需要先忽略的字节数，当遇到超过maxFrameLength的包时使用
+     */
     private long bytesToDiscard;
 
     /**
@@ -493,6 +527,14 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
 
     /**
      * Extract the sub-region of the specified buffer.
+     * <p>
+     * If you are sure that the frame and its content are not accessed after
+     * the current {@link #decode(ChannelHandlerContext, ByteBuf)}
+     * call returns, you can even avoid memory copy by returning the sliced
+     * sub-region (i.e. <tt>return buffer.slice(index, length)</tt>).
+     * It's often useful when you convert the extracted frame into an object.
+     * Refer to the source code of {@link ObjectDecoder} to see how this method
+     * is overridden to avoid memory copy.
      */
     protected ByteBuf extractFrame(ChannelHandlerContext ctx, ByteBuf buffer, int index, int length) {
         return buffer.retainedSlice(index, length);

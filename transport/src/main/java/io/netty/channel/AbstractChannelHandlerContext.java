@@ -58,7 +58,6 @@ import static io.netty.channel.ChannelHandlerMask.MASK_USER_EVENT_TRIGGERED;
 import static io.netty.channel.ChannelHandlerMask.MASK_WRITE;
 import static io.netty.channel.ChannelHandlerMask.mask;
 
-abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, ResourceLeakHint {
 /**
  * handler/ctx 状态
  *  ADD_PENDING = 1;
@@ -66,8 +65,8 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
  *  REMOVE_COMPLETE = 3;
  *  INIT = 0;
  */
-abstract class AbstractChannelHandlerContext extends DefaultAttributeMap
-        implements ChannelHandlerContext, ResourceLeakHint {
+abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, ResourceLeakHint {
+
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(AbstractChannelHandlerContext.class);
     volatile AbstractChannelHandlerContext next;

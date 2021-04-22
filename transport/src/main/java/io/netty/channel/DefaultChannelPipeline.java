@@ -1263,6 +1263,9 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
     }
 
+    /**
+     * TailContext是inbound事件链的最后一站，所以该节点大部分事件都是空实现，基本都是释放资源。
+     */
     // A special catch-all handler that handles both bytes and messages.
     final class TailContext extends AbstractChannelHandlerContext implements ChannelInboundHandler {
 
@@ -1324,6 +1327,12 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
     }
 
+    /**
+     * HeadContext 是 outbound 事件的尾部事件处理器，而且outbound是用户发送的API调用，
+     * 其最终目的是希望通过Netty完成具体的网络操作，所以HeadContext是离Netty底层机制最近的，
+     * 最终需要通过HeadContext直接调用netty的api来完成具体的动作，故HeadContext关于outbound
+     * 事件的实现，都是通过调用unsafe完成
+     */
     final class HeadContext extends AbstractChannelHandlerContext
             implements ChannelOutboundHandler, ChannelInboundHandler {
 
@@ -1356,6 +1365,12 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             // NOOP
         }
 
+        /**
+         * 通过Unsafe实例完成具体的绑定操作
+         * @param ctx           the {@link ChannelHandlerContext} for which the bind operation is made
+         * @param localAddress  the {@link SocketAddress} to which it should bound
+         * @param promise       the {@link ChannelPromise} to notify once the operation completes
+         */
         @Override
         public void bind(
                 ChannelHandlerContext ctx, SocketAddress localAddress, ChannelPromise promise) {
