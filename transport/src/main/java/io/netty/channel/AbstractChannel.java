@@ -461,6 +461,11 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             return remoteAddress0();
         }
 
+        /**
+         * channel注册
+         * @param eventLoop
+         * @param promise
+         */
         @Override
         public final void register(EventLoop eventLoop, final ChannelPromise promise) {
             ObjectUtil.checkNotNull(eventLoop, "eventLoop");
@@ -505,20 +510,29 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                     return;
                 }
                 boolean firstRegistration = neverRegistered;
+                // 调用jdk的channel.register  io.netty.channel.nio.AbstractNioChannel.doRegister
+                // 当前channel绑定的线程作为事件处理线程
                 doRegister();
                 neverRegistered = false;
                 registered = true;
 
+                // 触发HandlerAdded，在这个channelPipeline上任务队列上等待添加的handler都将会得到执行
                 // Ensure we call handlerAdded(...) before we actually notify the promise. This is needed as the
                 // user may already fire events through the pipeline in the ChannelFutureListener.
                 pipeline.invokeHandlerAddedIfNeeded();
 
                 safeSetSuccess(promise);
+                // 传播channel注册成功事件
                 pipeline.fireChannelRegistered();
                 // Only fire a channelActive if the channel has never been registered. This prevents firing
                 // multiple channel actives if the channel is deregistered and re-registered.
+                // isActive=true channel打开，并且已经连接
                 if (isActive()) {
+                    // firstRegistration 取自 成员变量 neverRegistered，控制active事件只会触发一次
                     if (firstRegistration) {
+                        // 传播channel激活事件
+                        // HeadContext 接受到激活事件后，如果开启了自动读取，会调用channel#read，向selector注册读事件
+                        // NioEventLoop#run 会监听channel上的事件，
                         pipeline.fireChannelActive();
                     } else if (config().isAutoRead()) {
                         // This channel was registered before and autoRead() is set. This means we need to begin read

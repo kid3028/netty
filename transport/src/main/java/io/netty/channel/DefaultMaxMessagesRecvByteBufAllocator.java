@@ -119,6 +119,12 @@ public abstract class DefaultMaxMessagesRecvByteBufAllocator implements MaxMessa
             totalMessages += amt;
         }
 
+        /**
+         * 更新最近一次读取的数据 ， 并累计到总的读取数据大小上
+         * @param bytes The number of bytes from the previous read operation. This may be negative if an read error
+         * occurs. If a negative value is seen it is expected to be return on the next call to
+         * {@link #lastBytesRead()}. A negative value will signal a termination condition enforced externally
+         */
         @Override
         public void lastBytesRead(int bytes) {
             lastBytesRead = bytes;

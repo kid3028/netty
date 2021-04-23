@@ -131,15 +131,25 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
             }
         }
 
+        /**
+         * SocketChannel的读事件处理
+         * {@link NioEventLoop#processSelectedKey(SelectionKey, AbstractNioChannel)}
+         *
+         */
         @Override
         public final void read() {
+            // channel已经进入关闭，停止读
             final ChannelConfig config = config();
             if (shouldBreakReadReady(config)) {
                 clearReadPending();
                 return;
             }
+
             final ChannelPipeline pipeline = pipeline();
+            // 内存分配器 默认 堆外内存池   PooledByteBufAllocator.DEFAULT
             final ByteBufAllocator allocator = config.getAllocator();
+            // AdaptiveRecvByteBufAllocator
+            // DefaultMaxMessagesRecvByteBufAllocator#MaxMessageHandle
             final RecvByteBufAllocator.Handle allocHandle = recvBufAllocHandle();
             allocHandle.reset(config);
 
@@ -147,10 +157,14 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
             boolean close = false;
             try {
                 do {
+                    // 创建一个 byteBuf 能装下已经接受到数据，并且大小刚刚合适
                     byteBuf = allocHandle.allocate(allocator);
+                    // 更新最后一次读取字节数  累计读取字节数
                     allocHandle.lastBytesRead(doReadBytes(byteBuf));
+                    // 本次没有读取到数据
                     if (allocHandle.lastBytesRead() <= 0) {
                         // nothing was read. release the buffer.
+                        // 没有读取到数据，将申请的byteBuf释放掉
                         byteBuf.release();
                         byteBuf = null;
                         close = allocHandle.lastBytesRead() < 0;
@@ -161,15 +175,19 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                         break;
                     }
 
+                    // 读取次数+1
                     allocHandle.incMessagesRead(1);
                     readPending = false;
+                    // 传播读事件
                     pipeline.fireChannelRead(byteBuf);
                     byteBuf = null;
                 } while (allocHandle.continueReading());
 
                 allocHandle.readComplete();
+                // 传播读取完成事件
                 pipeline.fireChannelReadComplete();
 
+                // 如果没有读取到数据会触发channel关闭  (allocHandle.lastBytesRead() < 0)
                 if (close) {
                     closeOnRead(pipeline);
                 }
@@ -182,6 +200,11 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                 // * The user called Channel.read() or ChannelHandlerContext.read() in channelReadComplete(...) method
                 //
                 // See https://github.com/netty/netty/issues/2254
+                /*
+                  如果没有开启自动注册读事件，在每次读事件处理过后会取消读事件，默认为自动注册
+                  如果通道不自动注册读事件，将无法从通道中读取数据，即无法处理请求或接受响应。
+                  如果没有开启自动读事件，需要应用程序在需要的时候手动调用通道的read方法
+                 */
                 if (!readPending && !config.isAutoRead()) {
                     removeReadOp();
                 }

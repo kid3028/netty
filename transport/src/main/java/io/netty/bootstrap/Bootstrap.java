@@ -152,6 +152,7 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
      * @see #connect()
      */
     private ChannelFuture doResolveAndConnect(final SocketAddress remoteAddress, final SocketAddress localAddress) {
+        // channel 初始化(options/attribute)、注册
         final ChannelFuture regFuture = initAndRegister();
         final Channel channel = regFuture.channel();
 
@@ -256,9 +257,17 @@ public class Bootstrap extends AbstractBootstrap<Bootstrap, Channel> {
         });
     }
 
+    /**
+     * 客户端channel初始化
+     *  1、handler添加
+     *  2、options attrs设置
+     * @param channel
+     * @throws Exception
+     */
     @Override
     void init(Channel channel) {
         ChannelPipeline p = channel.pipeline();
+        // handler 为ChannelInitializer，会调用handlerAdded方法，其中调用initChannel 将自定义的handler添加到pipeline中
         p.addLast(config.handler());
 
         setChannelOptions(channel, newOptionsArray(), logger);

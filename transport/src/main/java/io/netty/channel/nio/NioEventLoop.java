@@ -670,6 +670,11 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
     }
 
+    /**
+     * run 方法中调用到这里
+     * @param k
+     * @param ch
+     */
     private void processSelectedKey(SelectionKey k, AbstractNioChannel ch) {
         final AbstractNioChannel.NioUnsafe unsafe = ch.unsafe();
         if (!k.isValid()) {
@@ -716,6 +721,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             // Also check for readOps of 0 to workaround possible JDK bug which may otherwise lead
             // to a spin loop
             if ((readyOps & (SelectionKey.OP_READ | SelectionKey.OP_ACCEPT)) != 0 || readyOps == 0) {
+                // OP_READ or OP_ACCEPT
+                // OP_READ -> NioByteUnsafe  SocketChannel的读事件处理流程，即IO读
+                // OP_ACCEPT -> NioMessageUnsafe  ServerSocketChannel的读事件处理，即Accept
                 unsafe.read();
             }
         } catch (CancelledKeyException ignored) {

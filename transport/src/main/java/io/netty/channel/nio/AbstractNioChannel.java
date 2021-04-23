@@ -222,6 +222,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
             int interestOps = key.interestOps();
             if ((interestOps & readInterestOp) != 0) {
                 // only remove readInterestOp if needed
+                // 位运算取消注册
                 key.interestOps(interestOps & ~readInterestOp);
             }
         }
@@ -372,6 +373,11 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         return loop instanceof NioEventLoop;
     }
 
+    /**
+     * nioSocketChannel注册
+     * @throws Exception
+     * 调用 jdk 的channel完成注册
+     */
     @Override
     protected void doRegister() throws Exception {
         boolean selected = false;
