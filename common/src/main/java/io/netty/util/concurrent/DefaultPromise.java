@@ -36,38 +36,68 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(DefaultPromise.class);
     private static final InternalLogger rejectedExecutionLogger =
             InternalLoggerFactory.getInstance(DefaultPromise.class.getName() + ".rejectedExecution");
+    /**
+     * // TODO
+     */
     private static final int MAX_LISTENER_STACK_DEPTH = Math.min(8,
             SystemPropertyUtil.getInt("io.netty.defaultPromise.maxListenerStackDepth", 8));
     @SuppressWarnings("rawtypes")
     private static final AtomicReferenceFieldUpdater<DefaultPromise, Object> RESULT_UPDATER =
             AtomicReferenceFieldUpdater.newUpdater(DefaultPromise.class, Object.class, "result");
+    /**
+     * 成功
+     */
     private static final Object SUCCESS = new Object();
+    /**
+     * 不可取消
+     */
     private static final Object UNCANCELLABLE = new Object();
+    /**
+     * // TODO
+     */
     private static final CauseHolder CANCELLATION_CAUSE_HOLDER = new CauseHolder(
             StacklessCancellationException.newInstance(DefaultPromise.class, "cancel(...)"));
+    /**
+     * // TODO
+     */
     private static final StackTraceElement[] CANCELLATION_STACK = CANCELLATION_CAUSE_HOLDER.cause.getStackTrace();
 
     private volatile Object result;
     private final EventExecutor executor;
     /**
+     * 一个或者多个listener。可以是 GenericFutureListener or DefaultFutureListeners
+     * 如果listeners是null，那可能是还没有添加listener 或者 全部的listener已经被触发
+     *
+     * // TODO
+     *  需要使用synchronized进行线程同步。
+     *  同时需要需要在没有绑定线程的情况下也可以添加listener
      * One or more listeners. Can be a {@link GenericFutureListener} or a {@link DefaultFutureListeners}.
      * If {@code null}, it means either 1) no listeners were added yet or 2) all listeners were notified.
      *
      * Threading - synchronized(this). We must support adding listeners when there is no EventExecutor.
      */
     private Object listeners;
+
     /**
+     * 需要使用synchronized进行线程同步。 必须使用java底层的wait和notifyAll api来持有对象锁
      * Threading - synchronized(this). We are required to hold the monitor to use Java's underlying wait()/notifyAll().
      */
     private short waiters;
 
     /**
+     * 需要使用synchronized来进行线程同步。需要防止并发通知，并且在线程变化后也能保持FIFO的顺序
      * Threading - synchronized(this). We must prevent concurrent notification and FIFO listener notification if the
      * executor changes.
      */
     private boolean notifyingListeners;
 
     /**
+     * 创建一个Promise实例。
+     * 最佳实践是通过  {@link EventExecutor#newPromise()} 来创建promise实例
+     * eventExecutor将负责在promise完成后进行通知。
+     * 由于可能在promise中嵌套promise，所以promise通知时可能出现 StackOverflowError，但是我们假设这种情况不会出现。
+     * 如果stack深度超过了阈值，可以通过执行一个 Runnable 来避免 StackOverflowError
+     *
      * Creates a new instance.
      *
      * It is preferable to use {@link EventExecutor#newPromise()} to create a new promise
@@ -243,15 +273,18 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
         if (Thread.interrupted()) {
             throw new InterruptedException(toString());
         }
-
+        // 死锁检测。当前promise持有的eventExecutor和channel绑定的eventLoop是同一个
         checkDeadLock();
 
         synchronized (this) {
             while (!isDone()) {
+                // promise等待任务+1，当达到Short.MAX_VALUE 时抛出异常
                 incWaiters();
                 try {
+                    // 排队等待
                     wait();
                 } finally {
+                    // -1
                     decWaiters();
                 }
             }
@@ -259,6 +292,10 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
         return this;
     }
 
+    /**
+     * 如果是不关注interrupt，那么在catch到异常时，只记录，当promise完成后，给当前线程设置打断标记。
+     * @return
+     */
     @Override
     public Promise<V> awaitUninterruptibly() {
         if (isDone()) {
@@ -282,6 +319,7 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
             }
         }
 
+        // 发生过interrupt，在线程上设置标记位
         if (interrupted) {
             Thread.currentThread().interrupt();
         }
@@ -456,6 +494,10 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
         return executor;
     }
 
+    /**
+     * 死锁检测。如果当前promise引用的eventExecutor是打回给你钱channel绑定的eventLoop，则认为是死锁
+     * 故如果在事件处理方法中嗲用了await，将会抛出BlockingOperationException
+     */
     protected void checkDeadLock() {
         EventExecutor e = executor();
         if (e != null && e.inEventLoop()) {

@@ -21,6 +21,8 @@ package io.netty.util.concurrent;
 public interface Promise<V> extends Future<V> {
 
     /**
+     * 标记future为success，并且通知所有的listener
+     * 需要注意的是，如果future已经被标记为成功的或者失败的，再调用改方法将会抛出IllegalStateException
      * Marks this future as a success and notifies all
      * listeners.
      *
@@ -29,6 +31,8 @@ public interface Promise<V> extends Future<V> {
     Promise<V> setSuccess(V result);
 
     /**
+     * 标记future为success，并且通知所有的listener
+     * 当且仅当future被成功标记位success时返回true，否则返回false，包括future已经被标记位成功或者失败
      * Marks this future as a success and notifies all
      * listeners.
      *
@@ -39,6 +43,7 @@ public interface Promise<V> extends Future<V> {
     boolean trySuccess(V result);
 
     /**
+     * 标记future为fail
      * Marks this future as a failure and notifies all
      * listeners.
      *
@@ -47,6 +52,7 @@ public interface Promise<V> extends Future<V> {
     Promise<V> setFailure(Throwable cause);
 
     /**
+     * 标记future为fail
      * Marks this future as a failure and notifies all
      * listeners.
      *
@@ -57,6 +63,9 @@ public interface Promise<V> extends Future<V> {
     boolean tryFailure(Throwable cause);
 
     /**
+     * 标记future为不可取消
+     * 当且仅当future被成功标记为不可取消或者标记前future已经真正非取消完成才返回true。
+     * 如果future早已被取消了，那么将会返回false
      * Make this future impossible to cancel.
      *
      * @return {@code true} if and only if successfully marked this future as uncancellable or it is already done

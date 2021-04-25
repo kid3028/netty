@@ -24,6 +24,16 @@ import java.util.concurrent.TimeUnit;
 
 
 /**
+ * 异步Channel io操作的结果
+ *
+ * netty中所有的io操作都是异步的，这也就意味着所有io调用将会立即返回，不保证调用返回时io操作已完成。
+ * 取而代之的是，你将会得到一个ChannelFuture对象，其中包含了io操作的结果或者状态
+ *
+ * ChannelFuture可能是uncompleted 或者 completed的。
+ * 当一个io操作开始，便会创建一个future对象。future初始化状态是uncompleted，因为我们的io操作还没有完成，
+ * 最终future的状态可能是succeeded、failed、cancelled。
+ *
+ * 需要注意的是，failed、canceled也属于completed
  * The result of an asynchronous {@link Channel} I/O operation.
  * <p>
  * All I/O operations in Netty are asynchronous.  It means any I/O calls will
@@ -64,6 +74,12 @@ import java.util.concurrent.TimeUnit;
  * operation. It also allows you to add {@link ChannelFutureListener}s so you
  * can get notified when the I/O operation is completed.
  *
+ * addListener()操作时非阻塞的。由于是非阻塞的，使用listener可以获得较好的性能和资源利用率。
+ * 但是如果你不习惯事件驱动编程，那么使用串行逻辑可能是棘手的
+ *
+ * 相反地，await()操作时阻塞的，一旦调用，调用者将阻塞到操作结束。这种方式是可以比较容易地实现串行化逻辑，
+ * 但是调用者线程将会进行无畏地阻塞，直到io操作结束，并且内部线程通知也是比较昂贵。
+ * 更重要地，在某些特定的情况下还可能出现死锁。
  * <h3>Prefer {@link #addListener(GenericFutureListener)} to {@link #await()}</h3>
  *
  * It is recommended to prefer {@link #addListener(GenericFutureListener)} to
@@ -84,6 +100,11 @@ import java.util.concurrent.TimeUnit;
  * unnecessarily until the I/O operation is done and there's relatively
  * expensive cost of inter-thread notification.  Moreover, there's a chance of
  * dead lock in a particular circumstance, which is described below.
+ *
+ * 不要在ChannelHandler中调用await
+ * channelHandler的事件处理方法通常是被io线程调用，如果await在事件处理方法中被调用，并且是io线程，
+ * 那么io操作有可能永远无法完成，因为await阻塞了io操作，接下来便产生死锁
+ * 最佳实践是获取到future对象后，将需要等待结束后的操作通过addListener的形式注册监听
  *
  * <h3>Do not call {@link #await()} inside {@link ChannelHandler}</h3>
  * <p>
@@ -114,12 +135,28 @@ import java.util.concurrent.TimeUnit;
  *     });
  * }
  * </pre>
+ *
+ * 除了上面提及到缺点外，还有一些方便使用await的案例。
+ * 最关键地，不要在io线程中调用await，否则将会抛出BlockingOperationException来防止死锁
  * <p>
  * In spite of the disadvantages mentioned above, there are certainly the cases
  * where it is more convenient to call {@link #await()}. In such a case, please
  * make sure you do not call {@link #await()} in an I/O thread.  Otherwise,
  * {@link BlockingOperationException} will be raised to prevent a dead lock.
  *
+ * 不要混淆io超时和await超时
+ *  可以在调用await时指定timeout，这个timeout和io的timeout没有任何关系。
+ *  如果io操作timeout了，future将被标记 "completed with failure"
+ *
+ *  io超时应该通过option来进行配置，而不是在await中等待
+ *  ### BAD ###
+ *  f = b.connect()
+ *  f.awaitUninterruptibly(10, Timeout.SECOND)
+ *  // 这里f.cause().printStackTrace 获取异常等操作可能出现NPE，因为await虽然超时结束了，但io操作可能还没有完成，f.cause()调用便会NPE
+ *
+ *  ### GOOD ##
+ *  b.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
+ *  f = b.connect()
  * <h3>Do not confuse I/O timeout and await timeout</h3>
  *
  * The timeout value you specify with {@link #await(long)},
