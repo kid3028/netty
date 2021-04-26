@@ -16,12 +16,15 @@
 package io.netty.channel;
 
 /**
+ * 对消息大小进行估计
+ * 计算收到的消息在内存大概要占用多少
  * Responsible to estimate the size of a message. The size represents approximately how much memory the message will
  * reserve in memory.
  */
 public interface MessageSizeEstimator {
 
     /**
+     * 创建一个handler来进行size计算
      * Creates a new handle. The handle provides the actual operations.
      */
     Handle newHandle();
@@ -29,6 +32,7 @@ public interface MessageSizeEstimator {
     interface Handle {
 
         /**
+         * 计算消息占用大小
          * Calculate the size of the given message.
          *
          * @param msg       The message for which the size should be calculated

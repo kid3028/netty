@@ -46,6 +46,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(AbstractChannel.class);
 
+    // 创建channel时的父channel， 如server端的NioSocketChannel的parent为ServerSocketChannel
     private final Channel parent;
     private final ChannelId id;
     private final Unsafe unsafe;
@@ -90,6 +91,10 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         pipeline = newChannelPipeline();
     }
 
+    /**
+     * TODO
+     * @return
+     */
     protected final int maxMessagesPerWrite() {
         ChannelConfig config = config();
         if (config instanceof DefaultChannelConfig) {
@@ -511,10 +516,15 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         @Override
         public final void register(EventLoop eventLoop, final ChannelPromise promise) {
             ObjectUtil.checkNotNull(eventLoop, "eventLoop");
+
+            // 如果当前channel已经和eventLoop绑定，return
+            // AbstractChannel.registered volatile 修饰
             if (isRegistered()) {
                 promise.setFailure(new IllegalStateException("registered to an event loop already"));
                 return;
             }
+
+            // eventLoop必须是NioEventLoop
             if (!isCompatible(eventLoop)) {
                 promise.setFailure(
                         new IllegalStateException("incompatible event loop type: " + eventLoop.getClass().getName()));
@@ -523,6 +533,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
             AbstractChannel.this.eventLoop = eventLoop;
 
+            // channel操作需要在绑定的eventLoop上进行操作
             if (eventLoop.inEventLoop()) {
                 register0(promise);
             } else {
@@ -550,6 +561,8 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
          */
         private void register0(ChannelPromise promise) {
             try {
+                // 需要检查channel是否还打开着，因为channel可能被关闭，当register被eventLoop之外调用
+                // 标记future为不可取消，且channel是打开的
                 // check if the channel is still open as it could be closed in the mean time when the register
                 // call was outside of the eventLoop
                 if (!promise.setUncancellable() || !ensureOpen(promise)) {

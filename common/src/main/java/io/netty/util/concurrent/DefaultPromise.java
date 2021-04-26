@@ -506,6 +506,7 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     }
 
     /**
+     * future.addListener会调用到这里
      * 当future完成时通知listener
      * 为了避免 StackOverflowError，方法最大递归调用深度为 {@link #MAX_LISTENER_STACK_DEPTH}
      * 当递归深度超过限制后，将拒绝添加listener
@@ -666,9 +667,17 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
         return setValue0(new CauseHolder(checkNotNull(cause, "cause")));
     }
 
+    /**
+     * 设置future执行结果
+     * @param objResult
+     * @return
+     */
     private boolean setValue0(Object objResult) {
+        // cas 设置执行结果
         if (RESULT_UPDATER.compareAndSet(this, null, objResult) ||
             RESULT_UPDATER.compareAndSet(this, UNCANCELLABLE, objResult)) {
+            // 检查是否有在await的,如果有notifyAll
+            // 如果注册了listener，通知listener
             if (checkNotifyWaiters()) {
                 notifyListeners();
             }

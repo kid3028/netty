@@ -21,6 +21,11 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufHolder;
 
 /**
+ * 消息大小计算
+ *  消息是ByteBuf，可读字节数 : size = ByteBuf.readableBytes()
+ *  消息是ByteBufHolder,content的可读字节数 : size = msg.content().readableBytes()
+ *  消息是FileRegion : size = 0
+ *  对于未知消息类型，size = 8
  * Default {@link MessageSizeEstimator} implementation which supports the estimation of the size of
  * {@link ByteBuf}, {@link ByteBufHolder} and {@link FileRegion}.
  */
