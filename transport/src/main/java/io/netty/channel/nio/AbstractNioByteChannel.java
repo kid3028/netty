@@ -41,11 +41,16 @@ import static io.netty.channel.internal.ChannelUtils.WRITE_STATUS_SNDBUF_FULL;
  * {@link AbstractNioChannel} base class for {@link Channel}s that operate on bytes.
  */
 public abstract class AbstractNioByteChannel extends AbstractNioChannel {
+    /**
+     * hasDisconnect=false  不需要用户调用disconnect()方法
+     * defaultMaxMessagePerRead=16  在单个channel上最多连续读取16次
+     */
     private static final ChannelMetadata METADATA = new ChannelMetadata(false, 16);
     private static final String EXPECTED_TYPES =
             " (expected: " + StringUtil.simpleClassName(ByteBuf.class) + ", " +
             StringUtil.simpleClassName(FileRegion.class) + ')';
 
+    // flush写缓冲区数据到socket
     private final Runnable flushTask = new Runnable() {
         @Override
         public void run() {
@@ -181,6 +186,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                     // 传播读事件
                     pipeline.fireChannelRead(byteBuf);
                     byteBuf = null;
+                    // 是否继续读取，一次最多读取16次
                 } while (allocHandle.continueReading());
 
                 allocHandle.readComplete();
@@ -213,6 +219,12 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
     }
 
     /**
+     * 真正刷写缓冲区数据到socket
+     *
+     * 返回 0：本次写的是一个空ByteBuf
+     * 返回 1: 完成一个写数据
+     * 返回 WRITE_STATUS_SNDBUF_FULL=Integer.MAX_VALUE: 尝试写数据，但是socket缓冲区已满
+     *
      * Write objects to the OS.
      * @param in the collection which contains objects to write.
      * @return The value that should be decremented from the write quantum which starts at
@@ -237,16 +249,22 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
 
     private int doWriteInternal(ChannelOutboundBuffer in, Object msg) throws Exception {
         if (msg instanceof ByteBuf) {
+            // 数据已经写完，返回
             ByteBuf buf = (ByteBuf) msg;
             if (!buf.isReadable()) {
                 in.remove();
                 return 0;
             }
 
+            // 写数据到channel
+            // localFlushedAmount 本次写出去的字节数
             final int localFlushedAmount = doWriteBytes(buf);
             if (localFlushedAmount > 0) {
+                // 更新写进度
                 in.progress(localFlushedAmount);
+                // 当前entry数据已经写完
                 if (!buf.isReadable()) {
+                    // flushedEntry移动到下一个
                     in.remove();
                 }
                 return 1;
@@ -275,21 +293,31 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
 
     @Override
     protected void doWrite(ChannelOutboundBuffer in) throws Exception {
+        // io.netty.channel.DefaultChannelConfig.writeSpinCount = 16
+        // 一个channel连续写的次数
         int writeSpinCount = config().getWriteSpinCount();
         do {
             Object msg = in.current();
+            // 如果写缓冲区中没有可写的数据，取消注册写事件
             if (msg == null) {
                 // Wrote all messages.
                 clearOpWrite();
                 // Directly return here so incompleteWrite(...) is not called.
                 return;
             }
+            // 写数据
             writeSpinCount -= doWriteInternal(in, msg);
         } while (writeSpinCount > 0);
+
 
         incompleteWrite(writeSpinCount < 0);
     }
 
+    /**
+     * 对msg进行封装，转化为堆外内存
+     * @param msg
+     * @return
+     */
     @Override
     protected final Object filterOutboundMessage(Object msg) {
         if (msg instanceof ByteBuf) {
@@ -309,6 +337,11 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                 "unsupported message type: " + StringUtil.simpleClassName(msg) + EXPECTED_TYPES);
     }
 
+    /**
+     * setOpWrite=true 没有写完，那么再注册写事件
+     * 如果写完了，取消写注册，同时将flush任务加入事件虚幻
+     * @param setOpWrite
+     */
     protected final void incompleteWrite(boolean setOpWrite) {
         // Did not write completely.
         if (setOpWrite) {

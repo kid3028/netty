@@ -18,6 +18,13 @@ package io.netty.channel;
 import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
 
 /**
+ * 水位线限制
+ * 最高水位线 64K
+ * 最低水位线 32K
+ *
+ * 为了避免写缓冲区无限制的写入数据导致内存溢出，引入高低水位线机制，当积压数据超过设置对的阈值后会设置为不可写，
+ * 当写缓冲区的容量超过了写缓冲区的高水位线，则写缓冲区变为不可写，只有将写缓冲区的数据刷写到channel后，剩余待
+ * 刷写字节数低于低水位线，才可恢复可写状态
  * WriteBufferWaterMark is used to set low water mark and high water mark for the write buffer.
  * <p>
  * If the number of bytes queued in the write buffer exceeds the

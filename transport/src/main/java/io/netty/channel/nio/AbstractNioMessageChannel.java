@@ -63,11 +63,15 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
 
         private final List<Object> readBuf = new ArrayList<Object>();
 
+        /**
+         * 接收新连接
+         */
         @Override
         public void read() {
             assert eventLoop().inEventLoop();
             final ChannelConfig config = config();
             final ChannelPipeline pipeline = pipeline();
+            // AdaptiveRecvByteBufAllocator
             final RecvByteBufAllocator.Handle allocHandle = unsafe().recvBufAllocHandle();
             allocHandle.reset(config);
 
@@ -76,6 +80,9 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
             try {
                 try {
                     do {
+                        // NioServerSocketChannel#doReadMessage
+                        // localRead = 1 接收到连接
+                        // readBuf 存放接收到的连接
                         int localRead = doReadMessages(readBuf);
                         if (localRead == 0) {
                             break;
@@ -84,8 +91,9 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
                             closed = true;
                             break;
                         }
-
+                        // 接收连接数+1
                         allocHandle.incMessagesRead(localRead);
+                        // io.netty.channel.socket.nio.NioServerSocketChannel.METADATA  也是最大读取16次
                     } while (continueReading(allocHandle));
                 } catch (Throwable t) {
                     exception = t;
@@ -94,6 +102,7 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
                 int size = readBuf.size();
                 for (int i = 0; i < size; i ++) {
                     readPending = false;
+                    // ServerBootstrapAcceptor#channelRead  完成新连接处理
                     pipeline.fireChannelRead(readBuf.get(i));
                 }
                 readBuf.clear();

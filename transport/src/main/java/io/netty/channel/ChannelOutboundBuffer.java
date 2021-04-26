@@ -64,6 +64,9 @@ public final class ChannelOutboundBuffer {
 
     private static final InternalLogger logger = InternalLoggerFactory.getInstance(ChannelOutboundBuffer.class);
 
+    /**
+     * 存储一个个ByteBuffer
+     */
     private static final FastThreadLocal<ByteBuffer[]> NIO_BUFFERS = new FastThreadLocal<ByteBuffer[]>() {
         @Override
         protected ByteBuffer[] initialValue() throws Exception {
@@ -71,16 +74,22 @@ public final class ChannelOutboundBuffer {
         }
     };
 
+    /**
+     * 所属channel，每个channel独享一个写缓冲区
+     */
     private final Channel channel;
 
     // Entry(flushedEntry) --> ... Entry(unflushedEntry) --> ... Entry(tailEntry)
-    //
+    // 表示第一个被flush的entry，在写入时从该entry开始写
     // The Entry that is the first in the linked-list structure that was flushed
     private Entry flushedEntry;
+    // 第一个未flush的节点
     // The Entry which is the first unflushed in the linked-list structure
     private Entry unflushedEntry;
+    // 尾结点
     // The Entry which represents the tail of the buffer
     private Entry tailEntry;
+    //
     // The number of flushed entries that are not written yet
     private int flushed;
 
@@ -146,11 +155,14 @@ public final class ChannelOutboundBuffer {
             }
             do {
                 flushed ++;
+                // entry是否取消发送了
                 if (!entry.promise.setUncancellable()) {
+                    // entry已经被取消了，释放内存
                     // Was cancelled so make sure we free up memory and notify about the freed bytes
                     int pending = entry.cancel();
                     decrementPendingOutboundBytes(pending, false, true);
                 }
+                // 下一个entry
                 entry = entry.next;
             } while (entry != null);
 
@@ -160,6 +172,7 @@ public final class ChannelOutboundBuffer {
     }
 
     /**
+     * 增加写缓冲区待flush数据，如果触发最高水位线，设置为不可写
      * Increment the pending bytes which will be written at some point.
      * This method is thread-safe!
      */
@@ -264,12 +277,14 @@ public final class ChannelOutboundBuffer {
         ChannelPromise promise = e.promise;
         int size = e.pendingSize;
 
+        // flushedEntry更新到下一个
         removeEntry(e);
 
         if (!e.cancelled) {
             // only release message, notify and decrement if it was not canceled before.
             ReferenceCountUtil.safeRelease(msg);
             safeSuccess(promise);
+            // 降低当前水位线
             decrementPendingOutboundBytes(size, false, true);
         }
 
@@ -315,6 +330,10 @@ public final class ChannelOutboundBuffer {
         return true;
     }
 
+    /**
+     * flushedEntry更新到下一个
+     * @param e
+     */
     private void removeEntry(Entry e) {
         if (-- flushed == 0) {
             // processed everything
@@ -522,6 +541,7 @@ public final class ChannelOutboundBuffer {
     }
 
     /**
+     * 返回0表示未触发最高水位线
      * Returns {@code true} if and only if {@linkplain #totalPendingWriteBytes() the total number of pending bytes} did
      * not exceed the write watermark of the {@link Channel} and
      * no {@linkplain #setUserDefinedWritability(int, boolean) user-defined writability flag} has been set to
@@ -733,6 +753,7 @@ public final class ChannelOutboundBuffer {
     }
 
     /**
+     * 还有多少缓冲区可写
      * Get how many bytes can be written until {@link #isWritable()} returns {@code false}.
      * This quantity will always be non-negative. If {@link #isWritable()} is {@code false} then 0.
      */

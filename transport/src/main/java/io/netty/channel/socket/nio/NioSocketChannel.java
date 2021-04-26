@@ -358,6 +358,12 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
         return byteBuf.writeBytes(javaChannel(), allocHandle.attemptedBytesRead());
     }
 
+    /**
+     * 将ByteBuf中的数据写入socket
+     * @param buf           the {@link ByteBuf} from which the bytes should be written
+     * @return
+     * @throws Exception
+     */
     @Override
     protected int doWriteBytes(ByteBuf buf) throws Exception {
         final int expectedWrittenBytes = buf.readableBytes();
@@ -386,6 +392,7 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
     @Override
     protected void doWrite(ChannelOutboundBuffer in) throws Exception {
         SocketChannel ch = javaChannel();
+        // channel最多连续写次数
         int writeSpinCount = config().getWriteSpinCount();
         do {
             if (in.isEmpty()) {

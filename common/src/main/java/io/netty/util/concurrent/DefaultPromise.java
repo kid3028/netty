@@ -506,6 +506,9 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     }
 
     /**
+     * 当future完成时通知listener
+     * 为了避免 StackOverflowError，方法最大递归调用深度为 {@link #MAX_LISTENER_STACK_DEPTH}
+     * 当递归深度超过限制后，将拒绝添加listener
      * Notify a listener that a future has completed.
      * <p>
      * This method has a fixed depth of {@link #MAX_LISTENER_STACK_DEPTH} that will limit recursion to prevent
@@ -522,6 +525,9 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
                 checkNotNull(listener, "listener"));
     }
 
+    /**
+     * 通知future下的所有listener
+     */
     private void notifyListeners() {
         EventExecutor executor = executor();
         if (executor.inEventLoop()) {
@@ -538,6 +544,7 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
             }
         }
 
+        // 如果不是在channel关联的eventLoop上或者listener深度超过了限制，则以任务形式提交执行
         safeExecute(executor, new Runnable() {
             @Override
             public void run() {
@@ -576,6 +583,9 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
         });
     }
 
+    /**
+     *
+     */
     private void notifyListenersNow() {
         Object listeners;
         synchronized (this) {
@@ -589,6 +599,7 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
         }
         for (;;) {
             if (listeners instanceof DefaultFutureListeners) {
+                // 循环调用listener
                 notifyListeners0((DefaultFutureListeners) listeners);
             } else {
                 notifyListener0(this, (GenericFutureListener<?>) listeners);
@@ -606,6 +617,10 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
         }
     }
 
+    /**
+     * 循环调用每一个listener
+     * @param listeners
+     */
     private void notifyListeners0(DefaultFutureListeners listeners) {
         GenericFutureListener<?>[] a = listeners.listeners();
         int size = listeners.size();
@@ -663,6 +678,7 @@ public class DefaultPromise<V> extends AbstractFuture<V> implements Promise<V> {
     }
 
     /**
+     * 唤醒在wait的线程 （调用了await的）
      * Check if there are any waiters and if so notify these.
      * @return {@code true} if there are any listeners attached to the promise, {@code false} otherwise.
      */

@@ -38,6 +38,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 
 /**
+ * channel的绝大多数操作都委托给pipeline执行，pipe来根据事件是inbound还是outbound，来觉得由head还是tail触发事件传播，
+ * 大多数最后交由unsafe对象进行底层操作
  * A skeletal {@link Channel} implementation.
  */
 public abstract class AbstractChannel extends DefaultAttributeMap implements Channel {
@@ -120,12 +122,21 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         return new DefaultChannelPipeline(this);
     }
 
+    /**
+     * 当前channel是否还可写
+     * channelOutboundBuffer不为null，并且为触发最高水位线限制
+     * @return
+     */
     @Override
     public boolean isWritable() {
         ChannelOutboundBuffer buf = unsafe.outboundBuffer();
         return buf != null && buf.isWritable();
     }
 
+    /**
+     * 还有多少缓冲区可写
+     * @return
+     */
     @Override
     public long bytesBeforeUnwritable() {
         ChannelOutboundBuffer buf = unsafe.outboundBuffer();
@@ -134,6 +145,10 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         return buf != null ? buf.bytesBeforeUnwritable() : 0;
     }
 
+    /**
+     * 写缓冲区还需释放多少字节数据，channel才能可写
+     * @return
+     */
     @Override
     public long bytesBeforeWritable() {
         ChannelOutboundBuffer buf = unsafe.outboundBuffer();
@@ -152,11 +167,19 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         return pipeline;
     }
 
+    /**
+     * 当前channel的内存分配器
+     * @return
+     */
     @Override
     public ByteBufAllocator alloc() {
         return config().getAllocator();
     }
 
+    /**
+     * 是否在事件循环线程上
+     * @return
+     */
     @Override
     public EventLoop eventLoop() {
         EventLoop eventLoop = this.eventLoop;
@@ -239,6 +262,11 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         return pipeline.disconnect();
     }
 
+    /**
+     * close方法并非关闭通道，而是获取一个future，通常会注册回调事件，当通道真正被关闭时触发
+     * close事件为outbound，从tail开始最终会传播到HeadContext
+     * @return
+     */
     @Override
     public ChannelFuture close() {
         return pipeline.close();
@@ -285,12 +313,24 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         return pipeline.deregister(promise);
     }
 
+    /**
+     * read方法不是从网络中读取数据，，而是注册读事件，是outbound事件
+     * 传播到HeadContext，调用unsafe#beginRead方法注册读事件
+     *
+     * @return
+     */
     @Override
     public Channel read() {
         pipeline.read();
         return this;
     }
 
+    /**
+     * write是outbound事件，从tail开始传播，会经过定义的outbound事件处理器，
+     * 最后达到HeadContext，调用unsafe#write，将数据写入outboundBuffer，即放入通道写缓冲区
+     * @param msg
+     * @return
+     */
     @Override
     public ChannelFuture write(Object msg) {
         return pipeline.write(msg);
@@ -441,6 +481,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         @Override
         public RecvByteBufAllocator.Handle recvBufAllocHandle() {
             if (recvHandle == null) {
+                // AdaptiveRecvByteBufAllocator  io.netty.channel.DefaultChannelConfig.DefaultChannelConfig(io.netty.channel.Channel)
                 recvHandle = config().getRecvByteBufAllocator().newHandle();
             }
             return recvHandle;
@@ -463,6 +504,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
         /**
          * channel注册
+         * 主要逻辑都在  register0()
          * @param eventLoop
          * @param promise
          */
@@ -502,6 +544,10 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
         }
 
+        /**
+         * 指定注册
+         * @param promise
+         */
         private void register0(ChannelPromise promise) {
             try {
                 // check if the channel is still open as it could be closed in the mean time when the register
@@ -573,6 +619,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
             boolean wasActive = isActive();
             try {
+                // 调用底层socket bind地址
                 doBind(localAddress);
             } catch (Throwable t) {
                 safeSetFailure(promise, t);
@@ -580,6 +627,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
 
+            // 传播channel激活事件
             if (!wasActive && isActive()) {
                 invokeLater(new Runnable() {
                     @Override
@@ -602,6 +650,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
             boolean wasActive = isActive();
             try {
+                // 调用socket.close
                 doDisconnect();
                 // Reset remoteAddress and localAddress
                 remoteAddress = null;
@@ -612,6 +661,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
 
+            // 传播inActive事件
             if (wasActive && !isActive()) {
                 invokeLater(new Runnable() {
                     @Override
@@ -645,6 +695,8 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         }
 
         /**
+         * channel已经进去关闭，不允许写入
+         * 将ChannelOutboundBuffer置为null，数据将不会再写入
          * Shutdown the output portion of the corresponding {@link Channel}.
          * For example this will clean up the {@link ChannelOutboundBuffer} and not allow any more writes.
          * @param cause The cause which may provide rational for the shutdown.
@@ -713,9 +765,11 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
 
             if (closeInitiated) {
+                // channel已经关闭，对本次调用，只需设置成功标识即可
                 if (closeFuture.isDone()) {
                     // Closed already.
                     safeSetSuccess(promise);
+               // 关闭中，增加监听器
                 } else if (!(promise instanceof VoidChannelPromise)) { // Only needed if no VoidChannelPromise.
                     // This means close() was called before so we just register a listener and return
                     closeFuture.addListener(new ChannelFutureListener() {
@@ -879,10 +933,17 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
         }
 
+        /**
+         * write方法不会立即将数据写入到网咯socket中，而是写入到  【写缓存区】，
+         * 为应用级别的缓存区，即ChannelOutboundBuffer
+         * @param msg
+         * @param promise
+         */
         @Override
         public final void write(Object msg, ChannelPromise promise) {
             assertEventLoop();
 
+            // 正常情况不会为null，如果出现异常，释放msg后直接return
             ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
             if (outboundBuffer == null) {
                 try {
@@ -901,7 +962,9 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
             int size;
             try {
+                // 如果msg不在堆外，复制到堆外内存
                 msg = filterOutboundMessage(msg);
+                // 消息大小
                 size = pipeline.estimatorHandle().size(msg);
                 if (size < 0) {
                     size = 0;
@@ -914,7 +977,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 }
                 return;
             }
-
+            // 消息添加到写缓存区
             outboundBuffer.addMessage(msg, size, promise);
         }
 
@@ -922,6 +985,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         public final void flush() {
             assertEventLoop();
 
+            // 正常情况下不可能为null
             ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
             if (outboundBuffer == null) {
                 return;
@@ -938,6 +1002,8 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
 
+            // 获取写缓存队列，如果写缓存队列为空，跳过本次写事件。每一个channel拥有一个写缓冲队列，
+            // 写事件触发执行的动作是将写缓存中的数据写入到网络中
             final ChannelOutboundBuffer outboundBuffer = this.outboundBuffer;
             if (outboundBuffer == null || outboundBuffer.isEmpty()) {
                 return;
@@ -945,6 +1011,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
             inFlush0 = true;
 
+            // 如果channel处于未激活状态，清理掉写缓冲区
             // Mark all pending write requests as failure if the channel is inactive.
             if (!isActive()) {
                 try {
@@ -964,6 +1031,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
 
             try {
+                // 将写缓存中的数据写入网络通道
                 doWrite(outboundBuffer);
             } catch (Throwable t) {
                 handleWriteError(t);

@@ -722,6 +722,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     private void invokeWrite0(Object msg, ChannelPromise promise) {
         try {
+            // 最后到HeadContext -> unsafe
             ((ChannelOutboundHandler) handler()).write(this, msg, promise);
         } catch (Throwable t) {
             notifyOutboundHandlerException(t, promise);
@@ -797,6 +798,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
             if (flush) {
                 next.invokeWriteAndFlush(m, promise);
             } else {
+                // 开始写
                 next.invokeWrite(m, promise);
             }
         } else {

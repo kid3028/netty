@@ -52,6 +52,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
 
     private final SelectableChannel ch;
     protected final int readInterestOp;
+    // TODO
     volatile SelectionKey selectionKey;
     boolean readPending;
     private final Runnable clearReadPendingRunnable = new Runnable() {
@@ -94,6 +95,10 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         }
     }
 
+    /**
+     * 底层socket的isOpen方法
+     * @return
+     */
     @Override
     public boolean isOpen() {
         return ch.isOpen();
@@ -104,6 +109,10 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         return (NioUnsafe) super.unsafe();
     }
 
+    /**
+     * 返回底层socket channel
+     * @return
+     */
     protected SelectableChannel javaChannel() {
         return ch;
     }
@@ -157,6 +166,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     }
 
     /**
+     * 取消读事件注册
      * Set read pending to {@code false}.
      */
     protected final void clearReadPending() {

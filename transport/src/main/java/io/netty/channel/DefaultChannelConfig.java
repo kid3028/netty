@@ -76,6 +76,7 @@ public class DefaultChannelConfig implements ChannelConfig {
     }
 
     protected DefaultChannelConfig(Channel channel, RecvByteBufAllocator allocator) {
+        // io.netty.channel.nio.AbstractNioByteChannel.METADATA
         setRecvByteBufAllocator(allocator, channel.metadata());
         this.channel = channel;
     }
