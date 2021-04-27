@@ -19,6 +19,8 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.internal.TypeParameterMatcher;
 
 /**
+ * 只处理指定类型的消息
+ * 所有通过这个handler处理的消息都会被释放掉，如果想让消息被后面的handler也处理到，需要在处理中调用ReferenceCountUtil.retain()
  * {@link ChannelInboundHandlerAdapter} which allows to explicit only handle a specific type of messages.
  *
  * For example here is an implementation which only handle {@link String} messages.
@@ -82,6 +84,7 @@ public abstract class SimpleChannelInboundHandler<I> extends ChannelInboundHandl
     }
 
     /**
+     * 检查是否是能处理的特定类型
      * Returns {@code true} if the given message should be handled. If {@code false} it will be passed to the next
      * {@link ChannelInboundHandler} in the {@link ChannelPipeline}.
      */
@@ -89,6 +92,14 @@ public abstract class SimpleChannelInboundHandler<I> extends ChannelInboundHandl
         return matcher.match(msg);
     }
 
+    /**
+     * channelHandler处理消息的直接方法，具体的业务处理逻辑取决于业务实现channelRead0
+     * 首先判断msg是否是handler指定的类型，如果是调用业务复写的channelRead0进行处理，并在处理完后release一次msg
+     * 如果不是指定的类型，不做任何处理，继续向下传播事件
+     * @param ctx
+     * @param msg
+     * @throws Exception
+     */
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         boolean release = true;

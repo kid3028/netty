@@ -64,6 +64,14 @@ import static io.netty.channel.ChannelHandlerMask.mask;
  *  ADD_COMPLETE = 2;
  *  REMOVE_COMPLETE = 3;
  *  INIT = 0;
+ *
+ *  整个事件传播的模型是一致的：
+ *    1、判断当前线程是不是channel绑定的eventLoop
+ *    2、如果是处理事件
+ *    3、如果不是，提交任务到channel绑定的eventLoop执行事件处理
+ *    4、处理事件
+ *    4.1、如果当前handler的handlerAdded方法已被调用，则调用对应的事件处理方法
+ *    4.2、否则继续向下传播事件，什么都不做
  */
 abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, ResourceLeakHint {
 
@@ -98,6 +106,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     private final boolean ordered;
     private final int executionMask;
 
+    // channel绑定的eventLoop
     // Will be set to null if no child executor should be used, otherwise it will be set to the
     // child executor.
     final EventExecutor executor;
@@ -150,6 +159,7 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
 
     @Override
     public ChannelHandlerContext fireChannelRegistered() {
+        // 查找下一个inboundHandler，并调用其channelRegistered方法
         invokeChannelRegistered(findContextInbound(MASK_CHANNEL_REGISTERED));
         return this;
     }
@@ -168,9 +178,13 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         }
     }
 
+    /**
+     * 如果当前的handler#handlerAdded方法还没有被调用，那么直接将事件向后传播，如果已经调用，则调用当前handler的事件方法
+     */
     private void invokeChannelRegistered() {
         if (invokeHandler()) {
             try {
+                // 当前handler对自己进行一下包装，可能返回自己 or 包装后的自己 or 其他
                 ((ChannelInboundHandler) handler()).channelRegistered(this);
             } catch (Throwable t) {
                 invokeExceptionCaught(t);
@@ -883,6 +897,12 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         return false;
     }
 
+    /**
+     * 查找下一个inboundHandler
+     *   ctx.next
+     * @param mask
+     * @return
+     */
     private AbstractChannelHandlerContext findContextInbound(int mask) {
         AbstractChannelHandlerContext ctx = this;
         EventExecutor currentExecutor = executor();
@@ -892,6 +912,12 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
         return ctx;
     }
 
+    /**
+     * 查找下一个outboundHandler
+     *   ctx.prev
+     * @param mask
+     * @return
+     */
     private AbstractChannelHandlerContext findContextOutbound(int mask) {
         AbstractChannelHandlerContext ctx = this;
         EventExecutor currentExecutor = executor();
@@ -962,6 +988,10 @@ abstract class AbstractChannelHandlerContext implements ChannelHandlerContext, R
     }
 
     /**
+     * 检查channelHandler#handlerAdded()是否被调用了。如果已经被调用，返回true，否则返回false
+     * 如果返回false，对这个handler的调用操作将不会执行，而是直接传播事件。
+     *
+     * 由于handlerAdded是异步被执行的，所以可能存在handler早已添加到了pipeline的链表上，但handlerAdded还没有被调用
      * Makes best possible effort to detect if {@link ChannelHandler#handlerAdded(ChannelHandlerContext)} was called
      * yet. If not return {@code false} and if called or could not detect return {@code true}.
      *
