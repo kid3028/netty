@@ -18,6 +18,9 @@ package io.netty.channel;
 import io.netty.channel.ChannelHandlerMask.Skip;
 
 /**
+ * 仅仅是将事件向下一个handler传递
+ * ！！！ channelRead 后并不会自动释放msg，如果想要自动释放msg请使用SimpleChannelInboundHandler
+ *
  * Abstract base class for {@link ChannelInboundHandler} implementations which provide
  * implementations of all of their methods.
  *

@@ -242,6 +242,12 @@ public abstract class AbstractNioChannel extends AbstractChannel {
             return javaChannel();
         }
 
+        /**
+         * 连接服务端
+         * @param remoteAddress
+         * @param localAddress
+         * @param promise
+         */
         @Override
         public final void connect(
                 final SocketAddress remoteAddress, final SocketAddress localAddress, final ChannelPromise promise) {
@@ -257,6 +263,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
 
                 boolean wasActive = isActive();
                 if (doConnect(remoteAddress, localAddress)) {
+                    // 如果连接成功触发channelActive事件
                     fulfillConnectPromise(promise, wasActive);
                 } else {
                     connectPromise = promise;
@@ -265,6 +272,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
                     // Schedule connect timeout.
                     int connectTimeoutMillis = config().getConnectTimeoutMillis();
                     if (connectTimeoutMillis > 0) {
+                        // 设置定时任务，如果 connectTimeout 后，还没有连接成功，定时任务直接，关闭channel
                         connectTimeoutFuture = eventLoop().schedule(new Runnable() {
                             @Override
                             public void run() {
@@ -278,6 +286,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
                         }, connectTimeoutMillis, TimeUnit.MILLISECONDS);
                     }
 
+                    // 添加监听器，如果future被cancel了，关闭channel
                     promise.addListener(new ChannelFutureListener() {
                         @Override
                         public void operationComplete(ChannelFuture future) throws Exception {
@@ -310,6 +319,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
             // trySuccess() will return false if a user cancelled the connection attempt.
             boolean promiseSet = promise.trySuccess();
 
+            // 连接成功，触发channelActive事件
             // Regardless if the connection attempt was cancelled, channelActive() event should be triggered,
             // because what happened is what happened.
             if (!wasActive && active) {
@@ -333,6 +343,9 @@ public abstract class AbstractNioChannel extends AbstractChannel {
             closeIfClosed();
         }
 
+        /**
+         * eventLoop中调用到这里
+         */
         @Override
         public final void finishConnect() {
             // Note this method is invoked by the event loop only if the connection attempt was
@@ -415,6 +428,10 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         eventLoop().cancel(selectionKey());
     }
 
+    /**
+     * 注册读事件
+     * @throws Exception
+     */
     @Override
     protected void doBeginRead() throws Exception {
         // Channel.read() or ChannelHandlerContext.read() was called
@@ -442,6 +459,8 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     protected abstract void doFinishConnect() throws Exception;
 
     /**
+     * 返回一个堆外内存，并且释放入参buf
+     * ！！！ 如果申请堆外内存太昂贵，将直接返回原入参buf
      * Returns an off-heap copy of the specified {@link ByteBuf}, and releases the original one.
      * Note that this method does not create an off-heap copy if the allocation / deallocation cost is too high,
      * but just returns the original {@link ByteBuf}..

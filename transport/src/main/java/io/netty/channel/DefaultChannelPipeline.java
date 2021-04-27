@@ -74,6 +74,9 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     private boolean firstRegistration = true;
 
     /**
+     * 记录通过callHandlerAdded0添加进来的任务的头结点，任务将会在callHandlerAddedForAllHandlers中被执行。
+     * 这里我们仅仅保存头结点，因为这个链表是不会被频繁使用的，而且比较小。
+     * 在节点插入的时候我们遍历整个链表，这个过程在内存中进行
      * This is the head of a linked list that is processed by {@link #callHandlerAddedForAllHandlers()} and so process
      * all the pending {@link #callHandlerAdded0(AbstractChannelHandlerContext)}.
      *
@@ -84,6 +87,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     private PendingHandlerCallback pendingHandlerCallbackHead;
 
     /**
+     * 一旦channel注册成功，这个值变设置为true，并且不会再改变
      * Set to {@code true} once the {@link AbstractChannel} is registered.Once set to {@code true} the value will never
      * change.
      */
@@ -460,12 +464,20 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return (T) remove((AbstractChannelHandlerContext) ctx).handler();
     }
 
+    /**
+     * 移除handler
+     * ！！！ 头结点、尾结点不可以移除
+     * @param ctx
+     * @return
+     */
     private AbstractChannelHandlerContext remove(final AbstractChannelHandlerContext ctx) {
         assert ctx != head && ctx != tail;
 
         synchronized (this) {
+            // 从链表中将ctx移除
             atomicRemoveFromHandlerList(ctx);
 
+            // 如果channel还没有完成注册，那么ctx会被 任务 添加到pipeline中，所以需要向任务中移交一个移除任务
             // If the registered is false it means that the channel was not registered on an eventloop yet.
             // In this case we remove the context from the pipeline and add a task that will call
             // ChannelHandler.handlerRemoved(...) once the channel is registered.
@@ -474,6 +486,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
                 return ctx;
             }
 
+            // 触发移除任务执行
             EventExecutor executor = ctx.executor();
             if (!executor.inEventLoop()) {
                 executor.execute(new Runnable() {
@@ -539,18 +552,22 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         final AbstractChannelHandlerContext newCtx;
         synchronized (this) {
+            // 检查newHandler是否已经存在，是否可共享
             checkMultiplicity(newHandler);
             if (newName == null) {
                 newName = generateName(newHandler);
             } else {
                 boolean sameName = ctx.name().equals(newName);
+                //  如果新的handler名称和旧handler不同，那么检测新handler的名称是否和已有的重复，如果重复抛出异常
                 if (!sameName) {
                     checkDuplicateName(newName);
                 }
             }
 
+            // 将handler封装为ctx
             newCtx = newContext(ctx.executor, newName, newHandler);
 
+            // oldCtx 从链表中移除
             replace0(ctx, newCtx);
 
             // If the registered is false it means that the channel was not registered on an eventloop yet.
@@ -591,6 +608,9 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         newCtx.prev = prev;
         newCtx.next = next;
 
+        // 执行这里newCtx已经加入到链表，但是事件并不会立即发送到newHandler，
+        // 因为channel上只有一条线程，所有事件都必须由这个线程执行，而我们正好占用了这个线程，
+        // 所以我们需要将oldCtx的引用转到newCtx，让缓存中事件能在newCtx中执行
         // Finish the replacement of oldCtx with newCtx in the linked list.
         // Note that this doesn't mean events will be sent to the new handler immediately
         // because we are currently at the event handler thread and no more than one handler methods can be invoked
@@ -603,6 +623,10 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         oldCtx.next = newCtx;
     }
 
+    /**
+     * 检查handler是否是sharable的
+     * @param handler
+     */
     private static void checkMultiplicity(ChannelHandler handler) {
         if (handler instanceof ChannelHandlerAdapter) {
             ChannelHandlerAdapter h = (ChannelHandlerAdapter) handler;
@@ -623,6 +647,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
      */
     private void callHandlerAdded0(final AbstractChannelHandlerContext ctx) {
         try {
+            // 调用ctx.handlerAdded
             ctx.callHandlerAdded();
         } catch (Throwable t) {
             boolean removed = false;
@@ -668,6 +693,11 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
     }
 
+    /**
+     * 获取第一个handler， head.next
+     * 如果没有自定义handler添加过，直接返回null
+     * @return
+     */
     @Override
     public final ChannelHandler first() {
         ChannelHandlerContext first = firstContext();
@@ -686,6 +716,11 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return head.next;
     }
 
+    /**
+     * 获取最后一个handler，tail.prev
+     * 如果没有添加自定义handler，返回null
+     * @return
+     */
     @Override
     public final ChannelHandler last() {
         AbstractChannelHandlerContext last = tail.prev;
@@ -840,6 +875,8 @@ public class DefaultChannelPipeline implements ChannelPipeline {
     }
 
     /**
+     * 移除head、tail之外的所有handler
+     *
      * Removes all handlers from the pipeline one by one from tail (exclusive) to head (exclusive) to trigger
      * handlerRemoved().
      *
@@ -1535,6 +1572,9 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         abstract void execute();
     }
 
+    /**
+     * 异步调用handlerAdded方法
+     */
     private final class PendingHandlerAddedTask extends PendingHandlerCallback {
 
         PendingHandlerAddedTask(AbstractChannelHandlerContext ctx) {
@@ -1550,6 +1590,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         void execute() {
             EventExecutor executor = ctx.executor();
             if (executor.inEventLoop()) {
+                // 调用ctx.handlerAdded
                 callHandlerAdded0(ctx);
             } else {
                 try {
@@ -1567,6 +1608,9 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
     }
 
+    /**
+     * handler移除异步任务
+     */
     private final class PendingHandlerRemovedTask extends PendingHandlerCallback {
 
         PendingHandlerRemovedTask(AbstractChannelHandlerContext ctx) {
