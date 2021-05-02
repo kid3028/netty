@@ -16,6 +16,7 @@
 package io.netty.util.concurrent;
 
 /**
+ * EventExecutorGroup的特例，包含了一些工具方法
  * The {@link EventExecutor} is a special {@link EventExecutorGroup} which comes
  * with some handy methods to see if a {@link Thread} is executed in a event loop.
  * Besides this, it also extends the {@link EventExecutorGroup} to allow for a generic
@@ -57,6 +58,10 @@ public interface EventExecutor extends EventExecutorGroup {
     <V> ProgressivePromise<V> newProgressivePromise();
 
     /**
+     * 创建一个已经被标记位succeeded的future。
+     * isSuccess() 直接返回true
+     * 所有注册listener将立即得到通知
+     * 所有阻塞方法将立即放回
      * Create a new {@link Future} which is marked as succeeded already. So {@link Future#isSuccess()}
      * will return {@code true}. All {@link FutureListener} added to it will be notified directly. Also
      * every call of blocking methods will just return without blocking.
