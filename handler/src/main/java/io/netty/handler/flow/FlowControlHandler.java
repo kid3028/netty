@@ -15,9 +15,6 @@
  */
 package io.netty.handler.flow;
 
-import java.util.ArrayDeque;
-import java.util.Queue;
-
 import io.netty.channel.ChannelConfig;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandler;
@@ -31,7 +28,11 @@ import io.netty.util.internal.ObjectPool.ObjectCreator;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
+import java.util.ArrayDeque;
+import java.util.Queue;
+
 /**
+ * 确保每次读取仅有一条消息发往下游
  * The {@link FlowControlHandler} ensures that only one message per {@code read()} is sent downstream.
  *
  * Classes such as {@link ByteToMessageDecoder} or {@link MessageToByteEncoder} are free to emit as
@@ -85,6 +86,7 @@ public class FlowControlHandler extends ChannelDuplexHandler {
     }
 
     /**
+     * 底层的queue是否为空，这个方法仅仅是测试使用，非线程安全
      * Determine if the underlying {@link Queue} is empty. This method exists for
      * testing, debugging and inspection purposes and it is not Thread safe!
      */
@@ -93,6 +95,7 @@ public class FlowControlHandler extends ChannelDuplexHandler {
     }
 
     /**
+     * 释放queue中的所有数据
      * Releases all messages and destroys the {@link Queue}.
      */
     private void destroy() {

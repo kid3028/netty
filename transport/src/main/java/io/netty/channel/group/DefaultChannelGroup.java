@@ -58,6 +58,7 @@ public class DefaultChannelGroup extends AbstractSet<Channel> implements Channel
     private volatile boolean closed;
 
     /**
+     * executor用于通知listener
      * Creates a new group with a generated name and the provided {@link EventExecutor} to notify the
      * {@link ChannelGroupFuture}s.
      */

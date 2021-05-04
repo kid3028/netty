@@ -25,11 +25,17 @@ import io.netty.util.concurrent.GenericFutureListener;
 import java.util.Iterator;
 
 /**
+ * ChannelGroup异步操作的结果
+ *
  * The result of an asynchronous {@link ChannelGroup} operation.
  * {@link ChannelGroupFuture} is composed of {@link ChannelFuture}s which
  * represent the outcome of the individual I/O operations that affect the
  * {@link Channel}s in the {@link ChannelGroup}.
  *
+ * channelGroup中所有的io操作都是异步，所有的io操作将会立即返回，不保证执行完成。
+ * future将告诉你是成功、失败、取消
+ *
+ * 提供了多个方法来对执行结果进行检查，并且可以通过添加listener的方式在io操作完成后获得通知
  * <p>
  * All I/O operations in {@link ChannelGroup} are asynchronous.  It means any
  * I/O calls will return immediately with no guarantee that the requested I/O
@@ -43,6 +49,7 @@ import java.util.Iterator;
  * {@link ChannelGroupFutureListener} so you can get notified when the I/O
  * operation have been completed.
  *
+ * 尽可能的使用listener而不是await
  * <h3>Prefer {@link #addListener(GenericFutureListener)} to {@link #await()}</h3>
  *
  * It is recommended to prefer {@link #addListener(GenericFutureListener)} to
@@ -119,6 +126,7 @@ public interface ChannelGroupFuture extends Future<Void>, Iterable<ChannelFuture
     ChannelFuture find(Channel channel);
 
     /**
+     * 所有channel的io操作操作都执行成功了
      * Returns {@code true} if and only if all I/O operations associated with
      * this future were successful without any failure.
      */
@@ -129,12 +137,14 @@ public interface ChannelGroupFuture extends Future<Void>, Iterable<ChannelFuture
     ChannelGroupException cause();
 
     /**
+     * 部分成功返回true
      * Returns {@code true} if and only if the I/O operations associated with
      * this future were partially successful with some failure.
      */
     boolean isPartialSuccess();
 
     /**
+     * 部分失败返回true
      * Returns {@code true} if and only if the I/O operations associated with
      * this future have failed partially with some success.
      */

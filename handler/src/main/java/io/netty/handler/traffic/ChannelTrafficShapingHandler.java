@@ -23,6 +23,9 @@ import java.util.ArrayDeque;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * channel级别的流控
+ *
+ * handler是不共享的
  * <p>This implementation of the {@link AbstractTrafficShapingHandler} is for channel
  * traffic shaping, that is to say a per channel limitation of the bandwidth.</p>
  * <p>Note the index used in {@code OutboundBuffer.setUserDefinedWritability(index, boolean)} is <b>1</b>.</p>

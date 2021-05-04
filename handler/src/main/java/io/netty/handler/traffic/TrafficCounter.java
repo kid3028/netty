@@ -15,8 +15,6 @@
  */
 package io.netty.handler.traffic;
 
-import static io.netty.util.internal.ObjectUtil.checkNotNull;
-import static io.netty.util.internal.ObjectUtil.checkNotNullWithIAE;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
@@ -24,6 +22,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static io.netty.util.internal.ObjectUtil.checkNotNull;
+import static io.netty.util.internal.ObjectUtil.checkNotNullWithIAE;
 
 
 /**
@@ -474,6 +475,7 @@ public class TrafficCounter {
     }
 
     /**
+     * 读取这么多数据，在给定的带宽下，需要等多久
      * Returns the time to wait (if any) for the given length message, using the given limitTraffic and the max wait
      * time.
      *

@@ -15,17 +15,9 @@
  */
 package io.netty.handler.traffic;
 
-import static io.netty.util.internal.ObjectUtil.checkPositive;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufHolder;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelDuplexHandler;
-import io.netty.channel.ChannelConfig;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelOutboundBuffer;
-import io.netty.channel.ChannelPromise;
-import io.netty.channel.FileRegion;
+import io.netty.channel.*;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
 import io.netty.util.internal.logging.InternalLogger;
@@ -33,7 +25,14 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 
 import java.util.concurrent.TimeUnit;
 
+import static io.netty.util.internal.ObjectUtil.checkPositive;
+
 /**
+ * 对全局或者某个channel进行带宽限制
+ * 可以使用TrafficCounter对带宽进行近实时监控
+ *
+ * 可以通过 configure 修改读写限制，checkInterval
+ * getTrafficCounter 可以访问 TrafficCounter 对象，可以进行监控的启停，改变 checkInterval
  * <p>AbstractTrafficShapingHandler allows to limit the global bandwidth
  * (see {@link GlobalTrafficShapingHandler}) or per session
  * bandwidth (see {@link ChannelTrafficShapingHandler}), as traffic shaping.
@@ -53,11 +52,13 @@ public abstract class AbstractTrafficShapingHandler extends ChannelDuplexHandler
     private static final InternalLogger logger =
             InternalLoggerFactory.getInstance(AbstractTrafficShapingHandler.class);
     /**
+     * 默认 1s 进行一次 check
      * Default delay between two checks: 1s
      */
     public static final long DEFAULT_CHECK_INTERVAL = 1000;
 
    /**
+    * TODO 最大延迟
     * Default max delay in case of traffic shaping
     * (during which no communication will occur).
     * Shall be less than TIMEOUT. Here half of "standard" 30s
@@ -65,6 +66,7 @@ public abstract class AbstractTrafficShapingHandler extends ChannelDuplexHandler
     public static final long DEFAULT_MAX_TIME = 15000;
 
     /**
+     * TODO 最大写带宽
      * Default max size to not exceed in buffer (write only).
      */
     static final long DEFAULT_MAX_SIZE = 4 * 1024 * 1024L;
@@ -80,11 +82,13 @@ public abstract class AbstractTrafficShapingHandler extends ChannelDuplexHandler
     protected TrafficCounter trafficCounter;
 
     /**
+     * 写带宽限制
      * Limit in B/s to apply to write
      */
     private volatile long writeLimit;
 
     /**
+     * 读带宽限制
      * Limit in B/s to apply to read
      */
     private volatile long readLimit;
@@ -222,6 +226,8 @@ public abstract class AbstractTrafficShapingHandler extends ChannelDuplexHandler
     }
 
     /**
+     * 修改读写限制，checkInterval 限制
+     * 修改只针对旧的对象，并不会对已经进入调度的对象产生影响
      * Change the underlying limitations and check interval.
      * <p>Note the change will be taken as best effort, meaning
      * that all already scheduled traffics will not be

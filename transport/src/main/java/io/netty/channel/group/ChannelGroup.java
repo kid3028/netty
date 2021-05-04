@@ -31,6 +31,10 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 import java.util.Set;
 
 /**
+ * 线程安全的channel set集合，提供了批量操作channel api
+ * 使用channelGroup可以将channel分类为一些有意义的组（服务维度、站点维度）
+ * 关闭掉的channel会被自动移除，因此不需要关注。
+ * 一个channel可以属于多个channelGroup
  * A thread-safe {@link Set} that contains open {@link Channel}s and provides
  * various bulk operations on them.  Using {@link ChannelGroup}, you can
  * categorize {@link Channel}s into a meaningful group (e.g. on a per-service
@@ -38,6 +42,14 @@ import java.util.Set;
  * the collection, so that you don't need to worry about the life cycle of the
  * added {@link Channel}.  A {@link Channel} can belong to more than one
  * {@link ChannelGroup}.
+ *
+ * 广播消息
+ * 如果需要广播消息给一个或者多个channel，可以将关联的channel添加到同一个ChannelGroup中，然后调用channelGroup.write
+ *
+ *  ChannelGroup recipients = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+ *  recipients.add(channelA);
+ *  recipients.add(channelB);
+ *  recipients.write(Unpooled.copiedBuffer("Service will shut down for maintenance in 5 minutes!", CharsetUtil.UTF_8));
  *
  * <h3>Broadcast a message to multiple {@link Channel}s</h3>
  * <p>
@@ -95,12 +107,14 @@ import java.util.Set;
 public interface ChannelGroup extends Set<Channel>, Comparable<ChannelGroup> {
 
     /**
+     * 获取ChannelGroup name
      * Returns the name of this group.  A group name is purely for helping
      * you to distinguish one group from others.
      */
     String name();
 
     /**
+     * 获取指定channelId的channel实例，不存在返回null
      * Returns the {@link Channel} which has the specified {@link ChannelId}.
      *
      * @return the matching {@link Channel} if found. {@code null} otherwise.
@@ -108,6 +122,9 @@ public interface ChannelGroup extends Set<Channel>, Comparable<ChannelGroup> {
     Channel find(ChannelId id);
 
     /**
+     * 写消息到group中的所有channel。
+     * 如果消息是ByteBuf，将会使用ByteBuf.duplicate 复制数据，避免并发。
+     * write操作是一个异步过程
      * Writes the specified {@code message} to all {@link Channel}s in this
      * group. If the specified {@code message} is an instance of
      * {@link ByteBuf}, it is automatically
@@ -120,6 +137,7 @@ public interface ChannelGroup extends Set<Channel>, Comparable<ChannelGroup> {
     ChannelGroupFuture write(Object message);
 
     /**
+     * 写消息到group中与matcher匹配的channel
      * Writes the specified {@code message} to all {@link Channel}s in this
      * group that are matched by the given {@link ChannelMatcher}. If the specified {@code message} is an instance of
      * {@link ByteBuf}, it is automatically
@@ -204,6 +222,7 @@ public interface ChannelGroup extends Set<Channel>, Comparable<ChannelGroup> {
     ChannelGroupFuture flushAndWrite(Object message, ChannelMatcher matcher);
 
     /**
+     * 断开所有channel连接
      * Disconnects all {@link Channel}s in this group from their remote peers.
      *
      * @return the {@link ChannelGroupFuture} instance that notifies when
@@ -221,6 +240,7 @@ public interface ChannelGroup extends Set<Channel>, Comparable<ChannelGroup> {
     ChannelGroupFuture disconnect(ChannelMatcher matcher);
 
     /**
+     * 关闭所有channel
      * Closes all {@link Channel}s in this group.  If the {@link Channel} is
      * connected to a remote peer or bound to a local address, it is
      * automatically disconnected and unbound.

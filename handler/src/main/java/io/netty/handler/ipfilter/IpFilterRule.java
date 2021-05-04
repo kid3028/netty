@@ -18,10 +18,12 @@ package io.netty.handler.ipfilter;
 import java.net.InetSocketAddress;
 
 /**
+ * ip过滤规则
  * Implement this interface to create new rules.
  */
 public interface IpFilterRule {
     /**
+     * 如果ip是合法的，返回true
      * @return This method should return true if remoteAddress is valid according to your criteria. False otherwise.
      */
     boolean matches(InetSocketAddress remoteAddress);

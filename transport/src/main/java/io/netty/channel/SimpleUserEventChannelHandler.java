@@ -19,6 +19,7 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.internal.TypeParameterMatcher;
 
 /**
+ * 处理特定类型的userEvent
  * {@link ChannelInboundHandlerAdapter} which allows to conveniently only handle a specific type of user events.
  *
  * For example, here is an implementation which only handle {@link String} user events.

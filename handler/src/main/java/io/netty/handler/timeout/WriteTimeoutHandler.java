@@ -30,6 +30,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * write(ctx, msg, promise)
+ * 在head#write之前会经过这里，放入promise，加入定时任务，在规定时间内没有写完，该handler抛出异常
  * Raises a {@link WriteTimeoutException} when a write operation cannot finish in a certain period of time.
  *
  * <pre>

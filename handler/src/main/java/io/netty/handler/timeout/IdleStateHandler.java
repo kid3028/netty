@@ -31,6 +31,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * 设置定时任务，不断地更新最后读写时间戳，如果 t - (now - latest) < 0 -->idle -> trigger
  * Triggers an {@link IdleStateEvent} when a {@link Channel} has not performed
  * read, write, or both operation for a while.
  *
@@ -487,11 +488,13 @@ public class IdleStateHandler extends ChannelDuplexHandler {
 
         @Override
         protected void run(ChannelHandlerContext ctx) {
+            // 5
             long nextDelay = readerIdleTimeNanos;
             if (!reading) {
+                // 5 - (100 - 90) = -5
                 nextDelay -= ticksInNanos() - lastReadTime;
             }
-
+            // timeout
             if (nextDelay <= 0) {
                 // Reader is idle - set a new timeout and notify the callback.
                 readerIdleTimeout = schedule(ctx, this, readerIdleTimeNanos, TimeUnit.NANOSECONDS);

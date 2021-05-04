@@ -19,12 +19,12 @@ import io.netty.util.internal.DefaultPriorityQueue;
 import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.PriorityQueue;
 
-import static io.netty.util.concurrent.ScheduledFutureTask.deadlineNanos;
-
 import java.util.Comparator;
 import java.util.Queue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+
+import static io.netty.util.concurrent.ScheduledFutureTask.deadlineNanos;
 
 /**
  * Abstract base class for {@link EventExecutor}s that want to support scheduling.
@@ -43,6 +43,9 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
        public void run() { } // Do nothing
     };
 
+    /**
+     * 任务队列
+     */
     PriorityQueue<ScheduledFutureTask<?>> scheduledTaskQueue;
 
     long nextTaskId;
@@ -59,6 +62,7 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
     }
 
     /**
+     * 还有多久到执行时间
      * Given an arbitrary deadline {@code deadlineNanos}, calculate the number of nano seconds from now
      * {@code deadlineNanos} would expire.
      * @param deadlineNanos An arbitrary deadline in nano seconds.
@@ -76,6 +80,10 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
         return ScheduledFutureTask.initialNanoTime();
     }
 
+    /**
+     * 返回任务队列，如果为null，先进行初始化
+     * @return
+     */
     PriorityQueue<ScheduledFutureTask<?>> scheduledTaskQueue() {
         if (scheduledTaskQueue == null) {
             scheduledTaskQueue = new DefaultPriorityQueue<ScheduledFutureTask<?>>(
@@ -86,11 +94,24 @@ public abstract class AbstractScheduledEventExecutor extends AbstractEventExecut
         return scheduledTaskQueue;
     }
 
+    /**
+     * 任务队列是否为空
+     * @param queue
+     * @return
+     */
     private static boolean isNullOrEmpty(Queue<ScheduledFutureTask<?>> queue) {
         return queue == null || queue.isEmpty();
     }
 
     /**
+     * 取消所有任务
+     *
+     * for  {
+     *     cancel future
+     *     task = cancelTask
+     *     queue.remove(task)
+     * }
+     *
      * Cancel all scheduled tasks.
      *
      * This method MUST be called only when {@link #inEventLoop()} is {@code true}.

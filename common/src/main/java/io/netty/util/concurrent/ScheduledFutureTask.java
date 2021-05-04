@@ -25,11 +25,17 @@ import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("ComparableImplementedButEqualsNotOverridden")
 final class ScheduledFutureTask<V> extends PromiseTask<V> implements ScheduledFuture<V>, PriorityQueueNode {
+    // 开始时间为当前时间
     private static final long START_TIME = System.nanoTime();
 
+    /**
+     * 还剩多久当前时间 - 开始时间
+     * @return
+     */
     static long nanoTime() {
         return System.nanoTime() - START_TIME;
     }
+
 
     static long deadlineNanos(long delay) {
         long deadlineNanos = nanoTime() + delay;
@@ -202,8 +208,10 @@ final class ScheduledFutureTask<V> extends PromiseTask<V> implements ScheduledFu
      */
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
+        // cancel future， task = canceledTask
         boolean canceled = super.cancel(mayInterruptIfRunning);
         if (canceled) {
+            // queue中移除当前task
             scheduledExecutor().removeScheduled(this);
         }
         return canceled;

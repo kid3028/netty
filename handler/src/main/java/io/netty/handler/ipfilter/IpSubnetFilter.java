@@ -30,6 +30,8 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
+ * 进行ip过滤
+ * acceptIfNotFound = true 如果没有条件匹配上，也会接受ip
  * <p>
  * This class allows one to filter new {@link Channel}s based on the
  * {@link IpSubnetFilter}s passed to its constructor. If no rules are provided, all connections

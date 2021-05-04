@@ -45,6 +45,9 @@ class PromiseTask<V> extends DefaultPromise<V> implements RunnableFuture<V> {
     private static final Runnable CANCELLED = new SentinelRunnable("CANCELLED");
     private static final Runnable FAILED = new SentinelRunnable("FAILED");
 
+    /**
+     * SentinelRunnable 哨兵？
+     */
     private static class SentinelRunnable implements Runnable {
         private final String name;
 
@@ -173,6 +176,8 @@ class PromiseTask<V> extends DefaultPromise<V> implements RunnableFuture<V> {
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
+        // 取消future
+        // 将task替换为全局的 CANCELLED task
         return clearTaskAfterCompletion(super.cancel(mayInterruptIfRunning), CANCELLED);
     }
 

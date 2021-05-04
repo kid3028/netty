@@ -24,6 +24,12 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import java.net.SocketAddress;
 
 /**
+ * 对channel的ip进行过滤，来决定是接收或者拒绝
+ *
+ * 可以通过复写accept方法实现自定义的ip过滤
+ * 如果想要自定义拒绝时的响应，可以使用channelRejected方法，如果知识向发送一个响应，return null即可
+ *
+ * 该handler对于channel来说只会执行一次，执行完后会自动移除
  * This class provides the functionality to either accept or reject new {@link Channel}s
  * based on their IP address.
  * <p>
@@ -61,6 +67,7 @@ public abstract class AbstractRemoteAddressFilter<T extends SocketAddress> exten
             return false;
         }
 
+        // 只需要执行一次，执行完后便自动移
         // No need to keep this handler in the pipeline anymore because the decision is going to be made now.
         // Also, this will prevent the subsequent events from being handled by this handler.
         ctx.pipeline().remove(this);
@@ -80,6 +87,7 @@ public abstract class AbstractRemoteAddressFilter<T extends SocketAddress> exten
     }
 
     /**
+     * 如果ip被接受，返回true
      * This method is called immediately after a {@link io.netty.channel.Channel} gets registered.
      *
      * @return Return true if connections from this IP address and port should be accepted. False otherwise.
@@ -87,6 +95,7 @@ public abstract class AbstractRemoteAddressFilter<T extends SocketAddress> exten
     protected abstract boolean accept(ChannelHandlerContext ctx, T remoteAddress) throws Exception;
 
     /**
+     * 处理接受逻辑
      * This method is called if {@code remoteAddress} gets accepted by
      * {@link #accept(ChannelHandlerContext, SocketAddress)}.  You should override it if you would like to handle
      * (e.g. respond to) accepted addresses.
@@ -95,6 +104,7 @@ public abstract class AbstractRemoteAddressFilter<T extends SocketAddress> exten
     protected void channelAccepted(ChannelHandlerContext ctx, T remoteAddress) { }
 
     /**
+     * 复写拒绝逻辑
      * This method is called if {@code remoteAddress} gets rejected by
      * {@link #accept(ChannelHandlerContext, SocketAddress)}.  You should override it if you would like to handle
      * (e.g. respond to) rejected addresses.
