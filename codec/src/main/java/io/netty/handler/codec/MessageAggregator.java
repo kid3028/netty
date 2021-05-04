@@ -31,6 +31,8 @@ import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
 
 /**
+ * 聚合多个 msg 为一个 msg
+ * 被聚合消息的内容将被合并到开始消息的内容上
  * An abstract {@link ChannelHandler} that aggregates a series of message objects into a single aggregated message.
  * <p>
  * 'A series of messages' is composed of the following:

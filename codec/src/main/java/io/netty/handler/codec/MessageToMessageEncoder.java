@@ -29,6 +29,7 @@ import io.netty.util.internal.TypeParameterMatcher;
 import java.util.List;
 
 /**
+ * 将一个对象 编码成 另一个对象
  * {@link ChannelOutboundHandlerAdapter} which encodes from one message to an other message
  *
  * For example here is an implementation which decodes an {@link Integer} to an {@link String}.
@@ -86,6 +87,7 @@ public abstract class MessageToMessageEncoder<I> extends ChannelOutboundHandlerA
                 @SuppressWarnings("unchecked")
                 I cast = (I) msg;
                 try {
+                    // 实现 一个对象 到 另一个对象 的编码装换
                     encode(ctx, cast, out);
                 } finally {
                     ReferenceCountUtil.release(cast);

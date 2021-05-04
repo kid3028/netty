@@ -15,8 +15,6 @@
  */
 package io.netty.handler.codec;
 
-import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
@@ -25,8 +23,12 @@ import io.netty.util.internal.ObjectUtil;
 import java.nio.ByteOrder;
 import java.util.List;
 
+import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
+
 
 /**
+ * out中添加 记录length的ByteBuf，在追加msg
+ * 长度字段添加在开头
  * An encoder that prepends the length of the message.  The length value is
  * prepended as a binary form.
  * <p>
@@ -165,6 +167,7 @@ public class LengthFieldPrepender extends MessageToMessageEncoder<ByteBuf> {
 
         checkPositiveOrZero(length, "length");
 
+        // 根据长度字段大小生成对应的ByteBuf添加到out
         switch (lengthFieldLength) {
         case 1:
             if (length >= 256) {

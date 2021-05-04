@@ -26,6 +26,7 @@ import io.netty.util.internal.TypeParameterMatcher;
 import java.util.List;
 
 /**
+ * 一个对象 解码成 另一个对象
  * {@link ChannelInboundHandlerAdapter} which decodes from one message to an other message.
  *
  *
@@ -85,6 +86,7 @@ public abstract class MessageToMessageDecoder<I> extends ChannelInboundHandlerAd
                 @SuppressWarnings("unchecked")
                 I cast = (I) msg;
                 try {
+                    // 实现 解码 到指定对象
                     decode(ctx, cast, out);
                 } finally {
                     ReferenceCountUtil.release(cast);
@@ -100,6 +102,7 @@ public abstract class MessageToMessageDecoder<I> extends ChannelInboundHandlerAd
             try {
                 int size = out.size();
                 for (int i = 0; i < size; i++) {
+                    // 逐个向外传播
                     ctx.fireChannelRead(out.getUnsafe(i));
                 }
             } finally {

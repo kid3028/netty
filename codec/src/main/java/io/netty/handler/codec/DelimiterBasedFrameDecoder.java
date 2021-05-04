@@ -15,15 +15,17 @@
  */
 package io.netty.handler.codec;
 
-import static io.netty.util.internal.ObjectUtil.checkPositive;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.internal.ObjectUtil;
 
 import java.util.List;
 
+import static io.netty.util.internal.ObjectUtil.checkPositive;
+
 /**
+ * 允许指定多个分隔符，如果在buffer中存在多个分隔符，选择切分最短frame的分隔符
+ * 当frame过长，抛出TooLongFrameException
  * A decoder that splits the received {@link ByteBuf}s by one or more
  * delimiters.  It is particularly useful for decoding the frames which ends
  * with a delimiter such as {@link Delimiters#nulDelimiter() NUL} or
@@ -169,6 +171,7 @@ public class DelimiterBasedFrameDecoder extends ByteToMessageDecoder {
         validateMaxFrameLength(maxFrameLength);
         ObjectUtil.checkNonEmpty(delimiters, "delimiters");
 
+        // 分隔符是 换行符
         if (isLineBased(delimiters) && !isSubclass()) {
             lineBasedDecoder = new LineBasedFrameDecoder(maxFrameLength, stripDelimiter, failFast);
             this.delimiters = null;
@@ -218,6 +221,15 @@ public class DelimiterBasedFrameDecoder extends ByteToMessageDecoder {
     }
 
     /**
+     * 遍历delimiter，找出最小frame分割的delimiter，最小长度（indexOf）
+     * discardingTooLongFrame 第一次等于false
+     * 如果minDelimiter存在
+     *    1、如果已经触发丢弃，那么丢弃数据。需要快速失败，则抛出异常，否则return null
+     *    2、最小长度已经大于长度阈值，跳过现有数据，快速失败
+     *    3、截取可用数据帧
+     * 没有delimiter
+     *    检查数据长度是否超限，如果超限，打开丢弃标识，丢弃数据，快速失败的场景下，抛出异常。
+     *    丢弃数据等待下一个到来， TODO 为什么这里也丢弃？
      * Create a frame out of the {@link ByteBuf} and return it.
      *
      * @param   ctx             the {@link ChannelHandlerContext} which this {@link ByteToMessageDecoder} belongs to
@@ -244,6 +256,7 @@ public class DelimiterBasedFrameDecoder extends ByteToMessageDecoder {
             int minDelimLength = minDelim.capacity();
             ByteBuf frame;
 
+            // 第一次discardingTooLongFrame = false
             if (discardingTooLongFrame) {
                 // We've just finished discarding a very large frame.
                 // Go back to the initial state.

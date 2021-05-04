@@ -24,6 +24,7 @@ import io.netty.util.internal.TypeParameterMatcher;
 import java.util.List;
 
 /**
+ * 对象到对象的编解码
  * A Codec for on-the-fly encoding/decoding of message.
  *
  * This can be thought of as a combination of {@link MessageToMessageDecoder} and {@link MessageToMessageEncoder}.

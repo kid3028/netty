@@ -48,6 +48,16 @@ import static java.lang.Integer.MAX_VALUE;
  *     }
  * </pre>
  *
+ * 通常，帧处理应该在pipeline开始，例如通过各种FrameDecoder
+ *
+ * 如果有自定义decoder的需要，只需要使用ByteToMessageDecoder。
+ * 首先检查buffer里面是否有足够的字节来形成一个完成的frame。如果没有足够的字节，不可以对reader index 做修改，等待更多数据到达
+ *
+ * 为了在不修改reader index的提前下检查是否有足够的数据，通常使用  ByteBuf.getInt(int), in.getInt(in.readerIndex())
+ * !!! 子类不能是Sharable
+ *
+ * ByteBuf.readBytes(int) 可能造成内存泄漏，如果返回的buffer没有释放或者添加到out
+ * 由于ByteBuf.readSlice(int) 是引用底层的ByteBuf，并且ByteBuf的引用次数不会改变，故使用这个方法可以避免内存泄漏
  * <h3>Frame detection</h3>
  * <p>
  * Generally frame detection should be handled earlier in the pipeline by adding a
@@ -75,6 +85,7 @@ import static java.lang.Integer.MAX_VALUE;
 public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter {
 
     /**
+     * 通过内存copy的形式来合并byteBuf
      * Cumulate {@link ByteBuf}s by merge them into one {@link ByteBuf}'s, using memory copies.
      */
     public static final Cumulator MERGE_CUMULATOR = new Cumulator() {
@@ -96,7 +107,9 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
                     //   assumed to be shared (e.g. refCnt() > 1) and the reallocation may not be safe.
                     return expandCumulation(alloc, cumulation, in);
                 }
+                // 数据拷贝
                 cumulation.writeBytes(in, in.readerIndex(), required);
+                // 读指针 = 写指针
                 in.readerIndex(in.writerIndex());
                 return cumulation;
             } finally {
@@ -108,6 +121,8 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
     };
 
     /**
+     * 通过组合的形式来合并ByeBuf，不需要内存拷贝
+     * 这个方式使用比较复杂的索引方式来实现。在某个场景或者decoder实现下，这个方式可能比内存拷贝的方式要慢
      * Cumulate {@link ByteBuf}s by add them to a {@link CompositeByteBuf} and so do no memory copy whenever possible.
      * Be aware that {@link CompositeByteBuf} use a more complex indexing implementation so depending on your use-case
      * and the decoder implementation this may be slower then just use the {@link #MERGE_CUMULATOR}.
@@ -115,6 +130,8 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
     public static final Cumulator COMPOSITE_CUMULATOR = new Cumulator() {
         @Override
         public ByteBuf cumulate(ByteBufAllocator alloc, ByteBuf cumulation, ByteBuf in) {
+            // 是否还有数据可读，如果累加器中已经没有数据可以读，那么也就不涉及合并
+            // 释放原ByteBuf，返回in即可
             if (!cumulation.isReadable()) {
                 cumulation.release();
                 return in;
@@ -556,6 +573,8 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
      */
     public interface Cumulator {
         /**
+         * 合并byteBuf。
+         * 实现需要管理ByteBuf的生命周期，包括在ByteBuf使用完后释放。
          * Cumulate the given {@link ByteBuf}s and return the {@link ByteBuf} that holds the cumulated bytes.
          * The implementation is responsible to correctly handle the life-cycle of the given {@link ByteBuf}s and so
          * call {@link ByteBuf#release()} if a {@link ByteBuf} is fully consumed.

@@ -27,6 +27,7 @@ import io.netty.util.internal.TypeParameterMatcher;
 
 
 /**
+ * 对象编码成ByteBuf
  * {@link ChannelOutboundHandlerAdapter} which encodes message in a stream-like fashion from one message to an
  * {@link ByteBuf}.
  *
@@ -102,8 +103,10 @@ public abstract class MessageToByteEncoder<I> extends ChannelOutboundHandlerAdap
             if (acceptOutboundMessage(msg)) {
                 @SuppressWarnings("unchecked")
                 I cast = (I) msg;
+                // 申请ByteBuf
                 buf = allocateBuffer(ctx, cast, preferDirect);
                 try {
+                    // 编码为ByteBuf
                     encode(ctx, cast, buf);
                 } finally {
                     ReferenceCountUtil.release(cast);

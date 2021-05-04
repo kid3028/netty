@@ -369,6 +369,10 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
         }
     }
 
+    /**
+     * 丢弃过长数据
+     * @param in
+     */
     private void discardingTooLongFrame(ByteBuf in) {
         long bytesToDiscard = this.bytesToDiscard;
         int localBytesToDiscard = (int) Math.min(bytesToDiscard, in.readableBytes());
@@ -428,45 +432,61 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
      *                          be created.
      */
     protected Object decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
+        // 第一次是false
         if (discardingTooLongFrame) {
+            // 丢弃已记录长度数据
             discardingTooLongFrame(in);
         }
 
+        // 数据不全，return
         if (in.readableBytes() < lengthFieldEndOffset) {
             return null;
         }
 
+        // 长度字段的位置
         int actualLengthFieldOffset = in.readerIndex() + lengthFieldOffset;
+        // 读取长度字段值
         long frameLength = getUnadjustedFrameLength(in, actualLengthFieldOffset, lengthFieldLength, byteOrder);
 
+        // 如果长度不对，异常退出
         if (frameLength < 0) {
             failOnNegativeLengthField(in, frameLength, lengthFieldEndOffset);
         }
 
+        // eg: version(1) + length(4) + header(2) + data
+        // 100 += 2 + 5
         frameLength += lengthAdjustment + lengthFieldEndOffset;
 
+        // 长度值非法，异常退出
         if (frameLength < lengthFieldEndOffset) {
             failOnFrameLengthLessThanLengthFieldEndOffset(in, frameLength, lengthFieldEndOffset);
         }
 
+        // 包过大
         if (frameLength > maxFrameLength) {
+            // 丢弃当前可用字节，记录下还需丢弃的数量
             exceededFrameLength(in, frameLength);
             return null;
         }
 
+        // 可读字节数还不够，返回等待下一次数据
         // never overflows because it's less than maxFrameLength
         int frameLengthInt = (int) frameLength;
         if (in.readableBytes() < frameLengthInt) {
             return null;
         }
 
+        // 长度值非法，异常退出需要丢弃的数据大于长度
+        // 5 = 1 + 4  + 2
         if (initialBytesToStrip > frameLengthInt) {
             failOnFrameLengthLessThanInitialBytesToStrip(in, frameLength, initialBytesToStrip);
         }
+        // 跳过需要丢弃的字节数
         in.skipBytes(initialBytesToStrip);
 
         // extract frame
         int readerIndex = in.readerIndex();
+        // data = 100 += 2 + 5 - (1 + 4 + 2)
         int actualFrameLength = frameLengthInt - initialBytesToStrip;
         ByteBuf frame = extractFrame(ctx, in, readerIndex, actualFrameLength);
         in.readerIndex(readerIndex + actualFrameLength);

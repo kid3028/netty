@@ -15,14 +15,15 @@
  */
 package io.netty.handler.codec;
 
-import static io.netty.util.internal.ObjectUtil.checkPositive;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 
 import java.util.List;
 
+import static io.netty.util.internal.ObjectUtil.checkPositive;
+
 /**
+ * 读取固定长度数据
  * A decoder that splits the received {@link ByteBuf}s by the fixed number
  * of bytes. For example, if you received the following four fragmented packets:
  * <pre>
